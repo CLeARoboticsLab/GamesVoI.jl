@@ -1,45 +1,45 @@
-""" Write a standard-form constrained static game as a MCP
-i.e., if player i's problem is of the form
-             min_{xᵢ} fᵢ(x, θ)
-             s.t.     gᵢ(x, θ) = 0
-                      hᵢ(x, θ) ≥ 0
-
-and players share constraints
-                      g̃(x, θ) = 0
-                      h̃(x, θ) ≥ 0
-
-Here, xᵢ is Pi's decision variable, x is the concatenation of all players'
-variables, and θ is a vector of parameters. Express it in the following form:
-             find   z
-             s.t.   F(z, θ) ⟂ z̲ ≤ z ≤ z̅
-
-where we interpret z = (x, λ, μ, λ̃, μ̃), with λ and μ the Lagrange multipliers
-for the constraints g and h (with tildes as appropriate), respectively. The
-expression F(z) ⟂ z̲ ≤ z ≤ z̅ should be read as the following three statements:
-            - if z = z̲, then F(z, θ) ≥ 0
-            - if z̲ < z < z̅, then F(z, θ) = 0
-            - if z = z̅, then F(z, θ) ≤ 0
-
-For more details, please consult the documentation for the package
-`Complementarity.jl`, which may be found here:
-https://github.com/chkwon/Complementarity.jl/tree/master
-"""
-
 "Generic description of a constrained parametric game problem."
-Base.@kwdef struct ParametricGame{T1,T2,T3,T4,T5,T6,T7}
+struct ParametricGame{T1,T2,T3,T4,T5,T6,T7}
+    """ Write a standard-form constrained static game as a MCP
+    i.e., if player i's problem is of the form
+                min_{xᵢ} fᵢ(x, θ)
+                s.t.     gᵢ(x, θ) = 0
+                        hᵢ(x, θ) ≥ 0
+
+    and players share constraints
+                        g̃(x, θ) = 0
+                        h̃(x, θ) ≥ 0
+
+    Here, xᵢ is Pi's decision variable, x is the concatenation of all players'
+    variables, and θ is a vector of parameters. Express it in the following form:
+                find   z
+                s.t.   F(z, θ) ⟂ z̲ ≤ z ≤ z̅
+
+    where we interpret z = (x, λ, μ, λ̃, μ̃), with λ and μ the Lagrange multipliers
+    for the constraints g and h (with tildes as appropriate), respectively. The
+    expression F(z) ⟂ z̲ ≤ z ≤ z̅ should be read as the following three statements:
+                - if z = z̲, then F(z, θ) ≥ 0
+                - if z̲ < z < z̅, then F(z, θ) = 0
+                - if z = z̅, then F(z, θ) ≤ 0
+
+    For more details, please consult the documentation for the package
+    `Complementarity.jl`, which may be found here:
+    https://github.com/chkwon/Complementarity.jl/tree/master
+    """
+
     "Objective functions for all players"
     objectives::T1
     "Equality constraints for all players"
-    equality_constraints::T2 = nothing
+    equality_constraints::T2 
     "Inequality constraints for all players"
-    inequality_constraints::T3 = nothing
+    inequality_constraints::T3
     "Shared equality constraint"
-    shared_equality_constraint::T4 = nothing
+    shared_equality_constraint::T4
     "Shared inequality constraint"
-    shared_inequality_constraint::T5 = nothing
+    shared_inequality_constraint::T5 
 
     "Dimension of parameter vector"
-    parameter_dimension::T6 = 1
+    parameter_dimension::T6
     "Dimension of primal variables for all players"
     primal_dimensions::T7
     "Dimension of equality constraints for all players"
@@ -139,4 +139,4 @@ function solve(problem::ParametricGame; parameter_value = zeros(problem.paramete
 
     # Solve the problem.
     ParametricMCPs.solve(parametric_mcp, parameter_value)
-end
+end 
