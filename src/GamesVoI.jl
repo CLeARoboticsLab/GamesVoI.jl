@@ -4,7 +4,7 @@ using ParametricMCPs
 using Symbolics
 using BlockArrays
 
-include("ParametricGames.jl")
+include("parametric_game.jl")
 export ParametricGame, solve
 
 end

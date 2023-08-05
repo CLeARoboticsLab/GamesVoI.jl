@@ -38,18 +38,18 @@ function run_partial_information_game()
     g̃ = (x, θ) -> [0]
     h̃ = (x, θ) -> [0]
 
-    problem = ParametricGame(
-        fs,
-        gs,
-        hs,
-        g̃,
-        h̃,
-        2,
-        [2,6],
-        [1,2],
-        [2,6],
-        1,
-        1,
+    problem = ParametricGame(;
+        objectives = fs,
+        equality_constraints = gs,
+        inequality_constraints = hs,
+        shared_equality_constraint = g̃,
+        shared_inequality_constraint = h̃,
+        parameter_dimension = 2,
+        primal_dimensions = [2,6],
+        equality_dimensions = [1,2],
+        inequality_dimensions = [2,6],
+        shared_equality_dimension = 1,
+        shared_inequality_dimension = 1,
     )
 
     (;solution = solve(problem, parameter_value = θ), fs)
@@ -78,18 +78,18 @@ function solve_complete_information_game(B)
     g̃ = (x, θ) -> [0]
     h̃ = (x, θ) -> [0]
 
-    problem = ParametricGame(
-        fs,
-        gs,
-        hs,
-        g̃,
-        h̃,
-        2,
-        [2,3],
-        [1,1],
-        [2,3],
-        1,
-        1,
+    problem = ParametricGame(;
+    objectives = fs,
+    equality_constraints = gs,
+    inequality_constraints = hs,
+    shared_equality_constraint = g̃,
+    shared_inequality_constraint = h̃,
+    parameter_dimension = 2,
+    primal_dimensions = [2,3],
+    equality_dimensions = [1,1],
+    inequality_dimensions = [2,3],
+    shared_equality_dimension = 1,
+    shared_inequality_dimension = 1,
     )
 
     (;solution = solve(problem, parameter_value = θ), fs)
