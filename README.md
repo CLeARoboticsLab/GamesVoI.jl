@@ -1,6 +1,6 @@
 # GamesVoI.jl
 
-[![GamesVoI](https://github.com/CLeARoboticsLab/GamesVoI.jl/actions/workflows/test.yml/badge.svg)](https://github.com/CLeARoboticsLab/GamesVoI.jl/actions/workflows/test.yml)
+[![GamesVoI](https://github.com/CLeARoboticsLab/GamesVoI.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/CLeARoboticsLab/GamesVoI.jl/actions/workflows/ci.yml)
 
 ## Overview
 A Julia package for computing the value of information in Bayesian games.
