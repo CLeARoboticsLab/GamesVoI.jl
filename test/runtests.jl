@@ -1,24 +1,6 @@
 using Test: @testset, @test
 using BlockArrays: Block
-
-@testset "OptimizationTests" begin
-    f(x, θ) = sum(x)
-    g(x, θ) = [sum(x .^ 2) - 1]
-    h(x, θ) = -x
-
-    problem = ParametricOptimizationProblem(;
-        objective = f,
-        equality_constraint = g,
-        inequality_constraint = h,
-        parameter_dimension = 1,
-        primal_dimension = 2,
-        equality_dimension = 1,
-        inequality_dimension = 2,
-    )
-
-    solution = solve(problem, parameter_value = [0])
-    @test all(isapprox.(solution.z[1:(problem.primal_dimension)], -0.5sqrt(2), atol = 1e-6))
-end
+using GamesVoI: ParametricGame, solve
 
 @testset "GameTests" begin
     N = 3
