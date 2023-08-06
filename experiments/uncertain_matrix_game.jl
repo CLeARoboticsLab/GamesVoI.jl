@@ -1,9 +1,6 @@
-using ParametricMCPs
-using Symbolics 
+using GamesVoI
 using BlockArrays
 using LinearAlgebra
-
-include("parametric_game.jl")
 
 # Define normal form game as a parametric game.
 Ã = [-1 -1 -1;
@@ -82,17 +79,17 @@ function solve_complete_information_game(B)
     h̃ = (x, θ) -> [0]
 
     problem = ParametricGame(;
-        objectives = fs,
-        equality_constraints = gs,
-        inequality_constraints = hs,
-        shared_equality_constraint = g̃,
-        shared_inequality_constraint = h̃,
-        parameter_dimension = 2,
-        primal_dimensions = [2,3],
-        equality_dimensions = [1,1],
-        inequality_dimensions = [2,3],
-        shared_equality_dimension = 1,
-        shared_inequality_dimension = 1,
+    objectives = fs,
+    equality_constraints = gs,
+    inequality_constraints = hs,
+    shared_equality_constraint = g̃,
+    shared_inequality_constraint = h̃,
+    parameter_dimension = 2,
+    primal_dimensions = [2,3],
+    equality_dimensions = [1,1],
+    inequality_dimensions = [2,3],
+    shared_equality_dimension = 1,
+    shared_inequality_dimension = 1,
     )
 
     (;solution = solve(problem, parameter_value = θ), fs)

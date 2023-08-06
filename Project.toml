@@ -1,3 +1,8 @@
+name = "GamesVoI"
+uuid = "7d25404b-a830-41bb-a793-381f4150a06c"
+authors = ["Fernando Palafox <fernandopalafox@utexas.edu>"]
+version = "0.1.0"
+
 [deps]
 BlockArrays = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
 ParametricMCPs = "9b992ff8-05bb-4ea1-b9d2-5ef72d82f7ad"
