@@ -100,7 +100,7 @@ function solve(problem::ParametricGame; parameter_value = zeros(problem.paramete
     hs = map(h -> h(x, θ), problem.inequality_constraints)
     g̃ = problem.shared_equality_constraint(x, θ)
     h̃ = problem.shared_inequality_constraint(x, θ)
-
+    
     # Build Lagrangians.
     Ls = map(zip(1:N, fs, gs, hs)) do (ii, f, g, h)
         f - λ[Block(ii)]' * g - μ[Block(ii)]' * h - λ̃' * g̃ - μ̃' * h̃
