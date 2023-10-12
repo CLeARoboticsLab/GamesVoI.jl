@@ -138,5 +138,5 @@ function solve(problem::ParametricGame; parameter_value = zeros(problem.paramete
     parametric_mcp = ParametricMCP(F, z̲, z̅, problem.parameter_dimension)
 
     # Solve the problem.
-    ParametricMCPs.solve(parametric_mcp, parameter_value)
+    ParametricMCPs.solve(parametric_mcp, parameter_value; verbose = true)
 end
