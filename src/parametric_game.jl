@@ -103,20 +103,13 @@ function solve(problem::ParametricGame; parameter_value = zeros(problem.paramete
     
     # Build Lagrangians.
     Ls = map(zip(1:N, fs, gs, hs)) do (ii, f, g, h)
-        f - λ[Block(ii)]' * g - μ[Block(ii)]' * h - λ̃' * g̃ - μ̃' * h̃
+        f - λ[Block(ii)]'[1] * g - μ[Block(ii)]' * h - λ̃' * g̃ - μ̃' * h̃ # temp fix
     end
 
     # Build F = [∇ₓLs, gs, hs, g̃, h̃]'.
     ∇ₓLs = map(zip(Ls, blocks(x))) do (L, xᵢ)
         Symbolics.gradient(L, xᵢ)
     end
-
-    F = Symbolics.build_function(
-        [reduce(vcat, ∇ₓLs); reduce(vcat, gs); reduce(vcat, hs); g̃; h̃],
-        z̃,
-        θ̃;
-        expression = Val{false},
-    )[1]
 
     # Set lower and upper bounds for z.
     z̲ = [
@@ -135,7 +128,14 @@ function solve(problem::ParametricGame; parameter_value = zeros(problem.paramete
     ]
 
     # Build parametric MCP.
-    parametric_mcp = ParametricMCP(F, z̲, z̅, problem.parameter_dimension)
+    parametric_mcp = ParametricMCP(
+        [reduce(vcat, ∇ₓLs); reduce(vcat, gs); reduce(vcat, hs); g̃; h̃],
+        Symbolics.scalarize(z̃),
+        θ,
+        z̲,
+        z̅;
+        compute_sensitivities = false,
+    )
 
     # Solve the problem.
     ParametricMCPs.solve(parametric_mcp, parameter_value; verbose = true)
