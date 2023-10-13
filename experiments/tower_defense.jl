@@ -74,7 +74,7 @@ function dzdq()
             initial_guess = zeros(total_dim(parametric_game)),
             verbose=true,
         )
-    vars = BlockArray(solution.variables[1:24], [3,3,3,3,3,3,3,3])
+    z = BlockArray(solution.variables[1:24], [3,3,3,3,3,3,3,3])
  
     # Return Jacobian
     Zygote.jacobian(q -> solve(
