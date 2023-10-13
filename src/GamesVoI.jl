@@ -5,6 +5,6 @@ using Symbolics
 using BlockArrays
 
 include("parametric_game.jl")
-export ParametricGame, solve
+export ParametricGame, solve, total_dim
 
 end

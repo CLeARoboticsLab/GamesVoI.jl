@@ -24,6 +24,6 @@ using GamesVoI: ParametricGame, solve
         shared_inequality_dimension = 1,
     )
 
-    solution = solve(problem, parameter_value = [0])
-    @test all(isapprox.(solution.z[1:sum(problem.primal_dimensions)], -0.5sqrt(2), atol = 1e-6))
+    solution = solve(problem, [0])
+    @test all(isapprox.(solution.variables[1:sum(problem.primal_dimensions)], -0.5sqrt(2), atol = 1e-6))
 end
