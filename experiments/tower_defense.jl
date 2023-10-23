@@ -1,7 +1,6 @@
 using GamesVoI
 using BlockArrays
 using LinearAlgebra
-using Infiltrator
 using Zygote  
 
 """ Nomenclature
@@ -53,28 +52,149 @@ function build_parametric_game(pₖ, wₖ)
     ), fs
 end
 
-function_
+"""Solve for q (stage 1)
+
+   Returns dj/dq: optimal value of q"""
+function djdqaa(iter_limit=50, target_error=.00001, α=1, pₖ = [1/3; 1/3; 1/3], q=[1/2; 1/2; 1/2])
+    # iter_limit = 50
+    cur_iter = 0
+
+    z = BlockArray(zeros(24), [3,3,3,3,3,3,3,3])
+
+    error = 3.0
+    error_v = [1, 1, 1]
+    
+    while cur_iter < iter_limit || error > target_error
+        println("At iteration $cur_iter we have p = $q")
+        dz = dzdq(q, false, z, pₖ)
+        dj = djdq_partial(z, pₖ)'
+        dv = [0.0 0.0 0.0]
+        for s = 0:1
+            for w = 1:3
+                i = s * 12 + 3 * w  + 1
+                dv += djdv(s, w, z, q, pₖ)' * dz[i:i + 2, 1:3]
+            end
+        end
+        # dv = djdv(0, 1, z, q, pₖ) * + djdv(1, 0, z, q, pₖ)
+        du = djdu(0, z, q, pₖ)' * dz[1:3, 1:3] + djdu(1, z, q, pₖ)' * dz[13:15, 1:3]
+        dJdq = dj + dv + du
+
+        q_temp = q - α .* dJdq'
+        for i in 1:3
+            q_temp[i] = max(0, min(1, q_temp[i]))
+        end
+        error_v = q_temp - q
+        error = 0
+        for i in 1:3
+            error += error_v[i] * error_v[i]
+        end
+        q = q_temp
+
+
+        cur_iter += 1
+    end
+    println("At the final iteration $cur_iter we have p = $q")
+    return q
+end
+
+function djdq_partial(z, pₖ)
+    u_1 = z[1:3]
+    v_1_w1 = z[4:6]
+    v_1_w2 = z[7:9]
+    v_1_w3 = z[10:12]
+    u_0 = z[13:15]
+    v_0_w1 = z[16:18]
+    v_0_w2 = z[19:21]
+    v_0_w3 = z[22:24]
+
+    v = [0.0, 0.0, 0.0]
+    v[1] = pₖ[1] * (dot(u_0, v_0_w1) - dot(u_1, v_1_w1))
+    v[2] = pₖ[2] * (dot(u_0,  v_0_w2) - dot(u_1, v_1_w2))
+    v[3] = pₖ[3] * (dot(u_0, v_0_w3) - dot(u_1, v_1_w3))
+    return v
+end
+
+function djdv(s, w, z, qₖ, pₖ)
+    #TODO: WRONG
+    # state vars
+    u_1 = z[1:3]
+    v_1_w1 = z[4:6]
+    v_1_w2 = z[7:9]
+    v_1_w3 = z[10:12]
+    u_0 = z[13:15]
+    v_0_w1 = z[16:18]
+    v_0_w2 = z[19:21]
+    v_0_w3 = z[22:24]
+
+    # return vector
+    v = [0.0, 0.0, 0.0]
+
+    k = w
+    if s == 0 # Signal is 0
+        
+        v[1] += qₖ[k] * pₖ[k] * u_0[1] - pₖ[k] * u_0[1]
+        v[2] += qₖ[k] * pₖ[k] * u_0[2] - pₖ[k] * u_0[2]
+        v[3] += qₖ[k] * pₖ[k] * u_0[3] - pₖ[k] * u_0[3] 
+    else
+        v[1] -= qₖ[k] * pₖ[k] * u_1[1]
+        v[2] -= qₖ[k] * pₖ[k] * u_1[2]
+        v[3] -= qₖ[k] * pₖ[k] * u_1[3]
+    end
+    return v
+end
+
+
+function djdu(s, z, qₖ, pₖ)
+    # state vars
+    u_1 = z[1:3]
+    v_1_w1 = z[4:6]
+    v_1_w2 = z[7:9]
+    v_1_w3 = z[10:12]
+    u_0 = z[13:15]
+    v_0_w1 = z[16:18]
+    v_0_w2 = z[19:21]
+    v_0_w3 = z[22:24]
+    
+    # vector to return
+    v = [0.0, 0.0, 0.0]
+    if s == 0
+        for k in 1:3
+            v[1] += qₖ[k] * pₖ[k] * v_0_w1[k] - pₖ[k] * v_0_w1[1]
+            v[2] += qₖ[k] * pₖ[k] * v_0_w2[k] - pₖ[k] * v_0_w2[2]
+            v[3] += qₖ[k] * pₖ[k] * v_0_w3[k] - pₖ[k] * v_0_w3[3]
+        end
+    else
+        for k in 1:3
+            v[1] -= qₖ[k] * pₖ[k] * v_1_w1[1]
+            v[2] -= qₖ[k] * pₖ[k] * v_1_w2[2]
+            v[3] -= qₖ[k] * pₖ[k] * v_1_w3[3]
+        end
+    end
+    return v
+end
+
 
 """Solve Stackelberg-like game with 2 stages. 
 
    Returns dz/dq: Jacobian of Stage 2's decision variable (z = P1 and P2's variables in a Bayesian game) w.r.t. Stage 1's decision variable (q = signal structure)"""
-function dzdq()
+function dzdq(q, verbose, z1, pₖ)
     # Setup game
     wₖ = [0, 1, 1, 1, 0, 1, 1, 1, 0] # worlds
-    pₖ = [1/3; 1/3; 1/3] # P1's prior distribution over worlds
+    # pₖ = [1/3; 1/3; 1/3] # P1's prior distribution over worlds
     parametric_game, fs = build_parametric_game(pₖ, wₖ)
 
     # Solve Stage 1 
-    q = [1/3; 1/3; 1/3] # TODO obtain q by solving Stage 1
+    # q = [1/3; 1/3; 1/3] # TODO obtain q by solving Stage 1
 
     # Solve Stage 2 given q
     solution = solve(
             parametric_game,
             q;
             initial_guess = zeros(total_dim(parametric_game)),
-            verbose=true,
+            verbose=verbose,
         )
     z = BlockArray(solution.variables[1:24], [3,3,3,3,3,3,3,3])
+    z1 .= z
  
     # Return Jacobian
     Zygote.jacobian(q -> solve(
