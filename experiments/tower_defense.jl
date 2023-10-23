@@ -55,7 +55,7 @@ end
 """Solve for q (stage 1)
 
    Returns dj/dq: optimal value of q"""
-function djdqaa(iter_limit=50, target_error=.00001, α=1, pₖ = [1/3; 1/3; 1/3], q=[1/2; 1/2; 1/2])
+function solve_q(iter_limit=50, target_error=.00001, α=1, pₖ = [1/3; 1/3; 1/3], q=[1/2; 1/2; 1/2])
     # iter_limit = 50
     cur_iter = 0
 
