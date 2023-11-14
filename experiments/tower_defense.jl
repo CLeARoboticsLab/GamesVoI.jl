@@ -4,34 +4,50 @@ using LinearAlgebra
 using Zygote  
 
 """ Nomenclature
-    n: Number of worlds (=3)
-    pₖ = P(wₖ)                 : prior distribution of k worlds for each signal, 3x1 vector
-    x[Block(1)]                : [x(s¹), y(s¹), z(s¹)]|₁ᵀ, P1's action given signal s¹=1
-    x[Block(2)] ~ x[Block(4)]  : [a(wₖ), b(wₖ), c(wₖ)]|₁ᵀ, P2's action for world k given signal s¹=1
-    x[Block(5)]                : [x(s¹), y(s¹P), z(s¹)]|₀ᵀ, P1's action given signal s¹=0
-    x[Block(6)] ~ x[Block(8)]  : [a(wₖ), b(wₖ), c(wₖ)]|₀ᵀ, P2's action for world k given signal s¹=0
-    θ = qₖ = P(1|wₖ)           : P1's signal structure (in Stage 2), 3x1 vector
-    wₖ                         : vector containing P1's cost parameters for each world. length = n x number of decision vars per player = 3 x 3  
-
+    n                         : Number of worlds (=3)
+    pws = [P(w₁),..., P(wₙ)]  : prior distribution of k worlds for each signal, nx1 vector
+    ws                        : vector containing P1's cost parameters for each world. vector of nx1 vectors
+    x[Block(1)]               : u(0), P1's action given signal s¹=0
+    x[Block(2)]               : u(1), P1's action given signal s¹=1
+    x[Block(3)]               : u(2), P1's action given signal s¹=2
+    x[Block(4)]               : u(3), P1's action given signal s¹=3
+    x[Block(5)] ~ x[Block(7)] : v(wₖ, 0), P2's action for each worlds given signal s¹=0
+    x[Block(8)]               : v(wₖ, 1), P2's action for world 1 given signal s¹=1
+    x[Block(9)]               : v(wₖ, 2), P2's action for world 2 given signal s¹=2
+    x[Block(10)]              : v(wₖ, 3), P2's action for world 3 given signal s¹=3
+    θ = rₖ = [r₁, ... , rₙ]   : Scout allocation in each direction 
+    J                         : Stage 1's objective function  
 """
 
-function build_parametric_game(pₖ, wₖ)
+"""
+Build parametric game for Stage 2.
+
+Inputs: 
+    pws: prior distribution of k worlds for each signal, nx1 vector
+    ws: vector containing P1's cost parameters for each world. vector of nx1 vectors
+Outputs: 
+    parametric_game: ParametricGame object
+    fs: vector of symbolic expressions for each player's objective function
+
+"""
+function build_stage_2(pws, ws)
+
+    n = length(pws) # assume n_signals = n_worlds + 1
+    n_players = 1 + n^2
+    zero_signal_coeff(x, θ) = sum([(1 - θ[w_idx]) * pws[w_idx] / (1 - θ' * pws) * x[Block(w_idx + n + 1)] for w_idx in 1:n])
+
     fs = [
-        (x, θ) -> -(θ[1] * pₖ[1] * x[Block(1)]' * x[Block(2)] + θ[2] * pₖ[2] * x[Block(1)]' * x[Block(3)] + θ[3] * pₖ[3] * x[Block(1)]' * x[Block(4)]) / (θ' * pₖ),
-        (x, θ) -> x[Block(1)]' * diagm(wₖ[1:3]) * x[Block(2)],
-        (x, θ) -> x[Block(1)]' * diagm(wₖ[4:6]) * x[Block(3)],
-        (x, θ) -> x[Block(1)]' * diagm(wₖ[7:9]) * x[Block(4)],
-        (x, θ) -> -((1 - θ[1]) * pₖ[1] * x[Block(5)]' * x[Block(6)] + (1 - θ[2]) * pₖ[2] * x[Block(5)]' * x[Block(7)] + (1 - θ[3]) * pₖ[3] * x[Block(5)]' * x[Block(8)]) / ((1 .- θ)' * pₖ),
-        (x, θ) -> x[Block(5)]' * diagm(wₖ[1:3]) * x[Block(6)],
-        (x, θ) -> x[Block(5)]' * diagm(wₖ[4:6]) * x[Block(7)],
-        (x, θ) -> x[Block(5)]' * diagm(wₖ[7:9]) * x[Block(8)],
+        (x, θ) -> -x[Block(1)]' * zero_signal_coeff(x, θ), # u|s¹=0
+        [(x, θ) -> -x[Block(s_idx + 1)]' * x[Block(s_idx + 2 * n + 1)] for s_idx in 1:n]..., # u|s¹={1,2,3}
+        [(x, θ) -> -x[Block(1)]' * diagm(ws[w_idx]) * x[Block(w_idx + n + 1)] for w_idx in 1:n]..., # v|s¹=0
+        [(x, θ) -> -x[Block(s_idx + 1)]' * diagm(ws[s_idx]) * x[Block(s_idx + 2 * n + 1)] for s_idx in 1:n]..., # v|s¹={1,2,3}
     ]
 
     # equality constraints   
-    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:8]
+    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:n_players]
 
     # inequality constraints 
-    hs = [(x, θ) -> x[Block(i)] for i in 1:8]
+    hs = [(x, θ) -> x[Block(i)] for i in 1:n_players]
 
     # shared constraints
     g̃ = (x, θ) -> [0]
@@ -44,164 +60,135 @@ function build_parametric_game(pₖ, wₖ)
         shared_equality_constraint=g̃,
         shared_inequality_constraint=h̃,
         parameter_dimension=3,
-        primal_dimensions=[3, 3, 3, 3, 3, 3, 3, 3],
-        equality_dimensions=[1, 1, 1, 1, 1, 1, 1, 1],
-        inequality_dimensions=[3, 3, 3, 3, 3, 3, 3, 3],
+        primal_dimensions=[3 for _ in 1:n_players],
+        equality_dimensions=[1 for _ in 1:n_players],
+        inequality_dimensions=[3 for _ in 1:n_players],
         shared_equality_dimension=1,
         shared_inequality_dimension=1
     ), fs
 end
 
-"""Solve for q (stage 1)
+"""
+Solve Stage 1 to find optimal scout allocation r.
 
-   Returns dj/dq: optimal value of q"""
-function solve_q(iter_limit=50, target_error=.00001, α=1, pₖ = [1/3; 1/3; 1/3], q=[1/2; 1/2; 1/2])
-    # iter_limit = 50
+Inputs:
+    pws: prior distribution of k worlds, nx1 vector
+    r_init: initial guess scout allocation
+Outputs:
+    r: optimal scout allocation
+"""
+function solve_r(r_init, pws, ws; iter_limit=50, target_error=.00001, α=1)
     cur_iter = 0
-
-    z = BlockArray(zeros(24), [3,3,3,3,3,3,3,3])
-
-    error = 3.0
-    error_v = [1, 1, 1]
-    
-    while cur_iter < iter_limit || error > target_error
-        println("At iteration $cur_iter we have p = $q")
-        dz = dzdq(q, false, z, pₖ)
-        dj = djdq_partial(z, pₖ)'
-        dv = [0.0 0.0 0.0]
-        for s = 0:1
-            for w = 1:3
-                i = s * 12 + 3 * w  + 1
-                dv += djdv(s, w, z, q, pₖ)' * dz[i:i + 2, 1:3]
-            end
-        end
-        # dv = djdv(0, 1, z, q, pₖ) * + djdv(1, 0, z, q, pₖ)
-        du = djdu(0, z, q, pₖ)' * dz[1:3, 1:3] + djdu(1, z, q, pₖ)' * dz[13:15, 1:3]
-        dJdq = dj + dv + du
-
-        q_temp = q - α .* dJdq'
-        for i in 1:3
-            q_temp[i] = max(0, min(1, q_temp[i]))
-        end
-        error_v = q_temp - q
-        error = 0
-        for i in 1:3
-            error += error_v[i] * error_v[i]
-        end
-        q = q_temp
-
-
+    n = length(pws)
+    n_players = 1 + n^2
+    var_dim = n # TODO: Change this to be more general
+    game, _ = build_stage_2(pws, ws) 
+    r = r_init
+    x = compute_stage_2(r, pws, ws, game)
+    while cur_iter < iter_limit # TODO: Add a condition to break if gradient small enough
+        println("At iteration $cur_iter we have r = $r")
+        dJdr = compute_dJdr(r, x, pws, ws, game)
+        r_temp = r - α .* dJdr
+        r_temp = max.(0, min.(1, r_temp)) # project onto [0,1] TODO: Add projection onto simplex
+        r = r_temp
+        x = compute_stage_2(
+            r, pws, ws, game;
+            initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
+        )
         cur_iter += 1
     end
-    println("At the final iteration $cur_iter we have p = $q")
-    return q
+    println("At the final iteration $cur_iter we have r = $r")
+    return r
 end
 
-function djdq_partial(z, pₖ)
-    u_1 = z[1:3]
-    v_1_w1 = z[4:6]
-    v_1_w2 = z[7:9]
-    v_1_w3 = z[10:12]
-    u_0 = z[13:15]
-    v_0_w1 = z[16:18]
-    v_0_w2 = z[19:21]
-    v_0_w3 = z[22:24]
-
-    v = [0.0, 0.0, 0.0]
-    v[1] = pₖ[1] * (dot(u_0, v_0_w1) - dot(u_1, v_1_w1))
-    v[2] = pₖ[2] * (dot(u_0,  v_0_w2) - dot(u_1, v_1_w2))
-    v[3] = pₖ[3] * (dot(u_0, v_0_w3) - dot(u_1, v_1_w3))
-    return v
+"""
+Compute objective at stage 1
+"""
+function compute_J(r, x, pws)
+    n = length(pws)
+    -sum((1 - r[w_idx]) * pws[w_idx] * x[Block(1)]' * x[Block(w_idx + n + 1)] for w_idx in 1:n)
+    -sum(r[w_idx] * pws[w_idx] * x[Block(w_idx + 1)]' * x[Block(w_idx + 2 * n + 1)] for w_idx in 1:n)
 end
 
-function djdv(s, w, z, qₖ, pₖ)
-    #TODO: WRONG
-    # state vars
-    u_1 = z[1:3]
-    v_1_w1 = z[4:6]
-    v_1_w2 = z[7:9]
-    v_1_w3 = z[10:12]
-    u_0 = z[13:15]
-    v_0_w1 = z[16:18]
-    v_0_w2 = z[19:21]
-    v_0_w3 = z[22:24]
+"""
+Compute derivative of Stage 1's objective function w.r.t. x
+"""
+function compute_dJdx(r, x, pws)
+    Zygote.gradient(x -> compute_J(r, x, pws), x)[1] 
+end
 
-    # return vector
-    v = [0.0, 0.0, 0.0]
+"""
+Compute full derivative of Stage 1's objective function w.r.t. r
 
-    k = w
-    if s == 0 # Signal is 0
-        
-        v[1] += qₖ[k] * pₖ[k] * u_0[1] - pₖ[k] * u_0[1]
-        v[2] += qₖ[k] * pₖ[k] * u_0[2] - pₖ[k] * u_0[2]
-        v[3] += qₖ[k] * pₖ[k] * u_0[3] - pₖ[k] * u_0[3] 
-    else
-        v[1] -= qₖ[k] * pₖ[k] * u_1[1]
-        v[2] -= qₖ[k] * pₖ[k] * u_1[2]
-        v[3] -= qₖ[k] * pₖ[k] * u_1[3]
+Inputs: 
+    x: decision variables of Stage 2
+    pws: prior distribution of k worlds, nx1 vector
+
+Outputs: 
+    djdq: Jacobian of Stage 1's objective function w.r.t. r
+"""
+function compute_dJdr(r, x, pws, ws, game)
+    dJdx = compute_dJdx(r, x, pws)
+    dJdr = Zygote.gradient(r -> compute_J(r, x, pws), r)[1]
+    dxdr = compute_dxdr(r, x, pws, ws, game)
+    n = length(pws)
+    for idx in 1:(1 + n^2)
+        dJdr += (dJdx[Block(idx)]' * dxdr[Block(idx)])'
     end
-    return v
-end
-
-
-function djdu(s, z, qₖ, pₖ)
-    # state vars
-    u_1 = z[1:3]
-    v_1_w1 = z[4:6]
-    v_1_w2 = z[7:9]
-    v_1_w3 = z[10:12]
-    u_0 = z[13:15]
-    v_0_w1 = z[16:18]
-    v_0_w2 = z[19:21]
-    v_0_w3 = z[22:24]
     
-    # vector to return
-    v = [0.0, 0.0, 0.0]
-    if s == 0
-        for k in 1:3
-            v[1] += qₖ[k] * pₖ[k] * v_0_w1[k] - pₖ[k] * v_0_w1[1]
-            v[2] += qₖ[k] * pₖ[k] * v_0_w2[k] - pₖ[k] * v_0_w2[2]
-            v[3] += qₖ[k] * pₖ[k] * v_0_w3[k] - pₖ[k] * v_0_w3[3]
-        end
-    else
-        for k in 1:3
-            v[1] -= qₖ[k] * pₖ[k] * v_1_w1[1]
-            v[2] -= qₖ[k] * pₖ[k] * v_1_w2[2]
-            v[3] -= qₖ[k] * pₖ[k] * v_1_w3[3]
-        end
-    end
-    return v
+    dJdr
 end
 
+"""
+Solve stage 2 and return full derivative of objective function w.r.t. r 
 
-"""Solve Stackelberg-like game with 2 stages. 
+Inputs: 
+    r: scout allocation
+    pws: prior distribution of k worlds, nx1 vector
+    ws: vector containing P2's cost parameters for each world. vector of nx1 vectors
 
-   Returns dz/dq: Jacobian of Stage 2's decision variable (z = P1 and P2's variables in a Bayesian game) w.r.t. Stage 1's decision variable (q = signal structure)"""
-function dzdq(q, verbose, z1, pₖ)
-    # Setup game
-    wₖ = [0, 1, 1, 1, 0, 1, 1, 1, 0] # worlds
-    # pₖ = [1/3; 1/3; 1/3] # P1's prior distribution over worlds
-    parametric_game, fs = build_parametric_game(pₖ, wₖ)
+Outputs:
+    dxdr: Blocked Jacobian of Stage 2's decision variables w.r.t. Stage 1's decision variable
+"""
+function compute_dxdr(r, x, pws, ws, game; verbose=false)
+    n = length(pws)
+    n_players = 1 + n^2
+    var_dim = n # TODO: Change this to be more general
 
-    # Solve Stage 1 
-    # q = [1/3; 1/3; 1/3] # TODO obtain q by solving Stage 1
-
-    # Solve Stage 2 given q
-    solution = solve(
-            parametric_game,
-            q;
-            initial_guess = zeros(total_dim(parametric_game)),
-            verbose=verbose,
-        )
-    z = BlockArray(solution.variables[1:24], [3,3,3,3,3,3,3,3])
-    z1 .= z
- 
     # Return Jacobian
-    Zygote.jacobian(q -> solve(
-            parametric_game,
-            q;
-            initial_guess=zeros(total_dim(parametric_game)),
+    dxdr = Zygote.jacobian(r -> solve(
+            game,
+            r;
+            initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim)),
             verbose=false,
             return_primals=false
-        ).variables[1:24], q)[1]
+        ).variables[1:n_players*var_dim], r)[1]
+
+    BlockArray(dxdr, [var_dim for _ in 1:n_players], [var_dim])
+end
+
+"""
+Return Stage 2 decision variables given scout allocation r
+
+Input: 
+    r: scout allocation
+    pws: prior distribution of k worlds, nx1 vector
+    ws: vector containing P2's cost parameters for each world. Vector of nx1 vectors
+Output: 
+    x: decision variables of Stage 2 given r. BlockedArray with a block per player
+"""
+function compute_stage_2(r, pws, ws, game; initial_guess = nothing, verbose=false)
+    n = length(pws) # assume n_signals = n_worlds + 1
+    n_players = 1 + n^2
+    var_dim = n # TODO: Change this to be more general
+
+    solution = solve(
+        game,
+        r;
+        initial_guess=isnothing(initial_guess) ? zeros(total_dim(game)) : initial_guess,
+        verbose=verbose,
+        return_primals=false
+    )
+
+    BlockArray(solution.variables[1:n_players * var_dim], [n for _ in 1:n_players])
 end
