@@ -6,18 +6,63 @@ using Zygote
 """ Nomenclature
     n                         : Number of worlds (=3)
     pws = [P(w₁),..., P(wₙ)]  : prior distribution of k worlds for each signal, nx1 vector
-    ws                        : vector containing P1's cost parameters for each world. vector of nx1 vectors
-    x[Block(1)]               : u(0), P1's action given signal s¹=0
+    ws                        : vector containing P2's cost parameters for each world. vector of nx1 vectors
+    x[Block(1)]               : u(0), P1's action given signal s¹=0 depends on r
     x[Block(2)]               : u(1), P1's action given signal s¹=1
     x[Block(3)]               : u(2), P1's action given signal s¹=2
     x[Block(4)]               : u(3), P1's action given signal s¹=3
-    x[Block(5)] ~ x[Block(7)] : v(wₖ, 0), P2's action for each worlds given signal s¹=0
+    x[Block(5)] ~ x[Block(7)] : v(wₖ, 0), P2's action for each worlds given signal s¹=0 depends on r
     x[Block(8)]               : v(wₖ, 1), P2's action for world 1 given signal s¹=1
     x[Block(9)]               : v(wₖ, 2), P2's action for world 2 given signal s¹=2
     x[Block(10)]              : v(wₖ, 3), P2's action for world 3 given signal s¹=3
-    θ = rₖ = [r₁, ... , rₙ]   : Scout allocation in each direction 
+    θ = rₖ = [r₁, ... , rₙ]   : r, Scout allocation in each direction 
     J                         : Stage 1's objective function  
 """
+
+
+"""
+Solve Stage 1 to find optimal scout allocation r.
+
+Inputs:
+    pws: prior distribution of k worlds, nx1 vector
+    r_init: initial guess scout allocation
+Outputs:
+    r: optimal scout allocation
+"""
+function solve_r(pws, ws; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=.00001, α=1)
+    cur_iter = 0
+    n = length(pws)
+    n_players = 1 + n^2
+    var_dim = n # TODO: Change this to be more general
+    game, _ = build_stage_2(pws, ws) 
+    r = r_init
+    x = compute_stage_2(r, pws, ws, game)
+    dJdr = zeros(Float64, n)
+    while cur_iter < iter_limit # TODO: Break if change from last iteration is small
+        dJdr = compute_dJdr(r, x, pws, ws, game)
+        r_temp = r - α .* dJdr
+        r_temp = max.(0, min.(1, r_temp)) # project onto [0,1] 
+        r_temp = r_temp / sum(r_temp) # project onto (n-1) simplex
+        r = r_temp
+        x = compute_stage_2(
+            r, pws, ws, game;
+            initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
+        )
+        println("$cur_iter: r = $r")
+        cur_iter += 1
+    end
+    println("$cur_iter: r = $r")
+    return r
+end
+
+"P1 cost function"
+function J_1(u, v) 
+    sum(v - u) 
+end
+"P2 cost function"
+function J_2(u, v, w) 
+    -(v[w] - u[w]) # P2 only cares about a SINGLE direction.
+end 
 
 """
 Build parametric game for Stage 2.
@@ -34,13 +79,14 @@ function build_stage_2(pws, ws)
 
     n = length(pws) # assume n_signals = n_worlds + 1
     n_players = 1 + n^2
-    zero_signal_coeff(x, θ) = sum([(1 - θ[w_idx]) * pws[w_idx] / (1 - θ' * pws) * x[Block(w_idx + n + 1)] for w_idx in 1:n])
 
+    # Define Bayesian game player costs in Stage 2
+    v_s_0(x, θ) = sum([(1 - θ[w_idx]) * pws[w_idx] / (1 - θ' * pws) * x[Block(w_idx + n + 1)] for w_idx in 1:n])
     fs = [
-        (x, θ) -> -x[Block(1)]' * zero_signal_coeff(x, θ), # u|s¹=0
-        [(x, θ) -> -x[Block(s_idx + 1)]' * x[Block(s_idx + 2 * n + 1)] for s_idx in 1:n]..., # u|s¹={1,2,3}
-        [(x, θ) -> -x[Block(1)]' * diagm(ws[w_idx]) * x[Block(w_idx + n + 1)] for w_idx in 1:n]..., # v|s¹=0
-        [(x, θ) -> -x[Block(s_idx + 1)]' * diagm(ws[s_idx]) * x[Block(s_idx + 2 * n + 1)] for s_idx in 1:n]..., # v|s¹={1,2,3}
+        (x, θ) -> J_1(x[Block(1)], v_s_0(x, θ)), # u|s¹=0 IPI
+        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], ws[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
+        [(x, θ) -> J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)]) for w_idx in 1:n]..., # u|s¹={1,2,3} PI
+        [(x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], ws[w_idx]) for w_idx in 1:n]..., # v|s¹={1,2,3} PI
     ]
 
     # equality constraints   
@@ -69,52 +115,19 @@ function build_stage_2(pws, ws)
 end
 
 """
-Solve Stage 1 to find optimal scout allocation r.
-
-Inputs:
-    pws: prior distribution of k worlds, nx1 vector
-    r_init: initial guess scout allocation
-Outputs:
-    r: optimal scout allocation
+Compute objective at Stage 1
 """
-function solve_r(r_init, pws, ws; iter_limit=50, target_error=.00001, α=1)
-    cur_iter = 0
+function compute_J(r, x, pws, ws)
     n = length(pws)
-    n_players = 1 + n^2
-    var_dim = n # TODO: Change this to be more general
-    game, _ = build_stage_2(pws, ws) 
-    r = r_init
-    x = compute_stage_2(r, pws, ws, game)
-    while cur_iter < iter_limit # TODO: Add a condition to break if gradient small enough
-        println("At iteration $cur_iter we have r = $r")
-        dJdr = compute_dJdr(r, x, pws, ws, game)
-        r_temp = r - α .* dJdr
-        r_temp = max.(0, min.(1, r_temp)) # project onto [0,1] TODO: Add projection onto simplex
-        r = r_temp
-        x = compute_stage_2(
-            r, pws, ws, game;
-            initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
-        )
-        cur_iter += 1
-    end
-    println("At the final iteration $cur_iter we have r = $r")
-    return r
-end
-
-"""
-Compute objective at stage 1
-"""
-function compute_J(r, x, pws)
-    n = length(pws)
-    -sum((1 - r[w_idx]) * pws[w_idx] * x[Block(1)]' * x[Block(w_idx + n + 1)] for w_idx in 1:n)
-    -sum(r[w_idx] * pws[w_idx] * x[Block(w_idx + 1)]' * x[Block(w_idx + 2 * n + 1)] for w_idx in 1:n)
+    -sum((1 - r[w_idx]) * pws[w_idx] * J_1(x[Block(1)], x[Block(w_idx + n + 1)]) for w_idx in 1:n)
+    -sum(r[w_idx] * pws[w_idx] * J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], ws[w_idx]) for w_idx in 1:n)
 end
 
 """
 Compute derivative of Stage 1's objective function w.r.t. x
 """
-function compute_dJdx(r, x, pws)
-    Zygote.gradient(x -> compute_J(r, x, pws), x)[1] 
+function compute_dJdx(r, x, pws, ws)
+    gradient(x -> compute_J(r, x, pws, ws), x)[1] 
 end
 
 """
@@ -128,14 +141,13 @@ Outputs:
     djdq: Jacobian of Stage 1's objective function w.r.t. r
 """
 function compute_dJdr(r, x, pws, ws, game)
-    dJdx = compute_dJdx(r, x, pws)
-    dJdr = Zygote.gradient(r -> compute_J(r, x, pws), r)[1]
+    dJdx = compute_dJdx(r, x, pws, ws)
+    dJdr = gradient(r -> compute_J(r, x, pws, ws), r)[1]
     dxdr = compute_dxdr(r, x, pws, ws, game)
     n = length(pws)
     for idx in 1:(1 + n^2)
         dJdr += (dJdx[Block(idx)]' * dxdr[Block(idx)])'
     end
-    
     dJdr
 end
 
@@ -156,7 +168,7 @@ function compute_dxdr(r, x, pws, ws, game; verbose=false)
     var_dim = n # TODO: Change this to be more general
 
     # Return Jacobian
-    dxdr = Zygote.jacobian(r -> solve(
+    dxdr = jacobian(r -> solve(
             game,
             r;
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim)),
