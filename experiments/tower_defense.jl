@@ -1,6 +1,6 @@
 using GamesVoI
 using BlockArrays
-using LinearAlgebra
+using LinearAlgebra: norm_sqr
 using Zygote  
 
 """ Nomenclature
@@ -57,12 +57,16 @@ end
 
 "P1 cost function"
 function J_1(u, v) 
-    sum(v - u) 
+    norm_sqr(u - v)
 end
 "P2 cost function"
 function J_2(u, v, w) 
-    -(v[w] - u[w]) # P2 only cares about a SINGLE direction.
+    -activation(norm_sqr(v))*(v[w] - u[w]) # P2 only cares about a SINGLE direction.
 end 
+"Activation function"
+function activation(a; sharpness=1.000)
+    tanh(sharpness * a)
+end
 
 """
 Build parametric game for Stage 2.
@@ -90,10 +94,14 @@ function build_stage_2(pws, ws)
     ]
 
     # equality constraints   
-    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:n_players]
+    gs = vcat(
+        [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:(1+n)], # Defender must allocate defense budget
+        [(x, θ) -> [activation(norm_sqr(x[Block(i)])) * (sum(x[Block(i)]) - 1)] for i in (1+n+1):n_players] # If attack, allocate budget.
+
+    )  
 
     # inequality constraints 
-    hs = [(x, θ) -> x[Block(i)] for i in 1:n_players]
+    hs = [(x, θ) -> x[Block(i)] for i in 1:n_players] # All vars must be non-negative
 
     # shared constraints
     g̃ = (x, θ) -> [0]
