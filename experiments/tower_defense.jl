@@ -36,6 +36,7 @@ function solve_r(pws, ws; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
     var_dim = n # TODO: Change this to be more general
     game, _ = build_stage_2(pws, ws) 
     r = r_init
+    println("0: r = $r")
     x = compute_stage_2(r, pws, ws, game)
     dJdr = zeros(Float64, n)
     while cur_iter < iter_limit # TODO: Break if change from last iteration is small
@@ -48,25 +49,23 @@ function solve_r(pws, ws; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
             r, pws, ws, game;
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
         )
-        println("$cur_iter: r = $r")
         cur_iter += 1
+        println("$cur_iter: r = $r")
     end
     println("$cur_iter: r = $r")
     return r
 end
 
-"P1 cost function"
+"Defender cost function"
 function J_1(u, v) 
     norm_sqr(u - v)
 end
-"P2 cost function"
+
+"Attacker cost function"
 function J_2(u, v, w) 
-    -activation(norm_sqr(v))*(v[w] - u[w]) # P2 only cares about a SINGLE direction.
+    (u[w] - v[w]) # P2 only cares about a SINGLE direction.
 end 
-"Activation function"
-function activation(a; sharpness=1.000)
-    tanh(sharpness * a)
-end
+
 
 """
 Build parametric game for Stage 2.
@@ -85,20 +84,16 @@ function build_stage_2(pws, ws)
     n_players = 1 + n^2
 
     # Define Bayesian game player costs in Stage 2
-    v_s_0(x, θ) = sum([(1 - θ[w_idx]) * pws[w_idx] / (1 - θ' * pws) * x[Block(w_idx + n + 1)] for w_idx in 1:n])
+    p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * pws[w_idx] / (1 - θ' * pws)
     fs = [
-        (x, θ) -> J_1(x[Block(1)], v_s_0(x, θ)), # u|s¹=0 IPI
+        (x, θ) ->  sum([J_1(x[Block(1)], x[Block(w_idx + n + 1)]) * p_w_k_0(w_idx, θ) for w_idx in 1:n]), # u|s¹=0 IPI
         [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], ws[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
         [(x, θ) -> J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)]) for w_idx in 1:n]..., # u|s¹={1,2,3} PI
         [(x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], ws[w_idx]) for w_idx in 1:n]..., # v|s¹={1,2,3} PI
     ]
 
     # equality constraints   
-    gs = vcat(
-        [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:(1+n)], # Defender must allocate defense budget
-        [(x, θ) -> [activation(norm_sqr(x[Block(i)])) * (sum(x[Block(i)]) - 1)] for i in (1+n+1):n_players] # If attack, allocate budget.
-
-    )  
+    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:n_players] # Everyone must attack/defend
 
     # inequality constraints 
     hs = [(x, θ) -> x[Block(i)] for i in 1:n_players] # All vars must be non-negative
