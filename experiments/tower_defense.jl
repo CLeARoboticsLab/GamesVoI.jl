@@ -25,6 +25,7 @@ Solve Stage 1 to find optimal scout allocation r.
 
 Inputs:
     pws: prior distribution of k worlds, nx1 vector
+    ws: attacker preference for each direction, nx1 vector in the simplex
     r_init: initial guess scout allocation
 Outputs:
     r: optimal scout allocation
@@ -48,7 +49,7 @@ function solve_r(pws, ws; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
         )
         cur_iter += 1
-        println("$cur_iter: r = $r")
+        println("$cur_iter: r = $r, dJdr = $dJdr")
     end
     println("$cur_iter: r = $r")
     return r
@@ -74,9 +75,9 @@ end
 Attacker cost function
 ws: vector containing P2's (attacker) preference parameters for each world.
 """
-function J_2(u, v, ws)
+function J_2(u, v, w)
     δ = v - u
-    -sum([activate(δ[j]) * ws[j] * δ[j]^2 for j in eachindex(ws)])
+    -sum([activate(δ[j]) * w[j] * δ[j]^2 for j in eachindex(w)])
 end 
 
 "Approximate Heaviside step function"
@@ -104,9 +105,9 @@ function build_stage_2(pws, ws)
     p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * pws[w_idx] / (1 - θ' * pws)
     fs = [
         (x, θ) ->  sum([J_1(x[Block(1)], x[Block(w_idx + n + 1)]) * p_w_k_0(w_idx, θ) for w_idx in 1:n]), # u|s¹=0 IPI
-        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], ws) for w_idx in 1:n]...,  # v|s¹=0 IPI
+        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], ws[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
         [(x, θ) -> J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)]) for w_idx in 1:n]..., # u|s¹={1,2,3} PI
-        [(x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], ws) for w_idx in 1:n]..., # v|s¹={1,2,3} PI
+        [(x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], ws[w_idx]) for w_idx in 1:n]..., # v|s¹={1,2,3} PI
     ]
 
     # equality constraints   
