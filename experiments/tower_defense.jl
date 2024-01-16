@@ -42,9 +42,7 @@ function solve_r(pws, ws; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
     while cur_iter < iter_limit # TODO: Break if change from last iteration is small
         dJdr = compute_dJdr(r, x, pws, ws, game)
         r_temp = r - α .* dJdr
-        r_temp = max.(0, min.(1, r_temp)) # project onto [0,1] 
-        r_temp = r_temp / sum(r_temp) # project onto (n-1) simplex
-        r = r_temp
+        r = project_onto_simplex(r_temp)
         x = compute_stage_2(
             r, pws, ws, game;
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
@@ -55,6 +53,17 @@ function solve_r(pws, ws; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
     println("$cur_iter: r = $r")
     return r
 end
+
+"""
+Project onto simplex using Fig. 1 Duchi 2008
+"""
+function project_onto_simplex(v; z=1.0)
+    μ = sort(v, rev=true)
+    ρ = findfirst([μ[j] - 1/j * (sum(μ[1:j]) - z) <= 0 for j in eachindex(v)]) 
+    ρ = isnothing(ρ) ? length(v) : ρ - 1
+    θ = 1/ρ * (sum(μ[1:ρ]) - z)
+    return [maximum([v[i] - θ, 0]) for i in eachindex(v)]
+end 
 
 "Defender cost function"
 function J_1(u, v) 
