@@ -25,6 +25,7 @@ Solve Stage 1 to find optimal scout allocation r.
 
 Inputs:
     pws: prior distribution of k worlds, nx1 vector
+    ws: attacker preference for each direction, nx1 vector in the simplex
     r_init: initial guess scout allocation
 Outputs:
     r: optimal scout allocation
@@ -42,30 +43,47 @@ function solve_r(pws, ws; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
     while cur_iter < iter_limit # TODO: Break if change from last iteration is small
         dJdr = compute_dJdr(r, x, pws, ws, game)
         r_temp = r - α .* dJdr
-        r_temp = max.(0, min.(1, r_temp)) # project onto [0,1] 
-        r_temp = r_temp / sum(r_temp) # project onto (n-1) simplex
-        r = r_temp
+        r = project_onto_simplex(r_temp)
         x = compute_stage_2(
             r, pws, ws, game;
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
         )
         cur_iter += 1
-        println("$cur_iter: r = $r")
+        println("$cur_iter: r = $r, dJdr = $dJdr")
     end
     println("$cur_iter: r = $r")
     return r
 end
+
+"""
+Project onto simplex using Fig. 1 Duchi 2008
+"""
+function project_onto_simplex(v; z=1.0)
+    μ = sort(v, rev=true)
+    ρ = findfirst([μ[j] - 1/j * (sum(μ[1:j]) - z) <= 0 for j in eachindex(v)]) 
+    ρ = isnothing(ρ) ? length(v) : ρ - 1
+    θ = 1/ρ * (sum(μ[1:ρ]) - z)
+    return [maximum([v[i] - θ, 0]) for i in eachindex(v)]
+end 
 
 "Defender cost function"
 function J_1(u, v) 
     norm_sqr(u - v)
 end
 
-"Attacker cost function"
-function J_2(u, v, w) 
-    (u[w] - v[w]) # P2 only cares about a SINGLE direction.
+"""
+Attacker cost function
+ws: vector containing P2's (attacker) preference parameters for each world.
+"""
+function J_2(u, v, w)
+    δ = v - u
+    -sum([activate(δ[j]) * w[j] * δ[j]^2 for j in eachindex(w)])
 end 
 
+"Approximate Heaviside step function"
+function activate(δ; k=100000)
+    return 1/(1 + exp(-2 * δ * k))
+end
 
 """
 Build parametric game for Stage 2.
@@ -122,8 +140,7 @@ Compute objective at Stage 1
 """
 function compute_J(r, x, pws, ws)
     n = length(pws)
-    -sum((1 - r[w_idx]) * pws[w_idx] * J_1(x[Block(1)], x[Block(w_idx + n + 1)]) for w_idx in 1:n)
-    -sum(r[w_idx] * pws[w_idx] * J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], ws[w_idx]) for w_idx in 1:n)
+    1/(1 - r' * pws) * sum([(1 - r[j]) * pws[j] * J_1(x[Block(1)], x[Block(j + n + 1)]) for j in 1:n])
 end
 
 """
