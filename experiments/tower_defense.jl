@@ -4,7 +4,7 @@ using LinearAlgebra: norm_sqr
 using Zygote  
 
 """ Nomenclature
-    n                         : Number of worlds (=3)
+    N                         : Number of worlds (=3)
     pws = [P(w₁),..., P(wₙ)]  : prior distribution of k worlds for each signal, nx1 vector
     ws                        : vector containing P2's cost parameters for each world. vector of nx1 vectors
     x[Block(1)]               : u(0), P1's action given signal s¹=0 depends on r
@@ -39,10 +39,10 @@ function solve_r(pws, ws; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
     r = r_init
     println("0: r = $r")
     x = compute_stage_2(r, pws, ws, game)
-    dJdr = zeros(Float64, n)
+    dKdr = zeros(Float64, n)
     while cur_iter < iter_limit # TODO: Break if change from last iteration is small
-        dJdr = compute_dJdr(r, x, pws, ws, game)
-        r_temp = r - α .* dJdr
+        dKdr = compute_dKdr(r, x, pws, ws, game)
+        r_temp = r - α .* dKdr
         r = project_onto_simplex(r_temp)
         x = compute_stage_2(
             r, pws, ws, game;
@@ -138,7 +138,7 @@ end
 """
 Compute objective at Stage 1
 """
-function compute_J(r, x, pws, ws)
+function compute_K(r, x, pws, ws)
     n = length(pws)
     sum([(1 - r[j]) * pws[j] * J_1(x[Block(1)], x[Block(j + n + 1)]) for j in 1:n]) + 
     sum([r[j] * pws[j] * J_1(x[Block(j + 1)], x[Block(j + 2 * n + 1)]) for j in 1:n])
@@ -147,8 +147,8 @@ end
 """
 Compute derivative of Stage 1's objective function w.r.t. x
 """
-function compute_dJdx(r, x, pws, ws)
-    gradient(x -> compute_J(r, x, pws, ws), x)[1] 
+function compute_dKdx(r, x, pws, ws)
+    gradient(x -> compute_K(r, x, pws, ws), x)[1] 
 end
 
 """
@@ -161,15 +161,15 @@ Inputs:
 Outputs: 
     djdq: Jacobian of Stage 1's objective function w.r.t. r
 """
-function compute_dJdr(r, x, pws, ws, game)
-    dJdx = compute_dJdx(r, x, pws, ws)
-    dJdr = gradient(r -> compute_J(r, x, pws, ws), r)[1]
+function compute_dKdr(r, x, pws, ws, game)
+    dKdx = compute_dKdx(r, x, pws, ws)
+    dKdr = gradient(r -> compute_K(r, x, pws, ws), r)[1]
     dxdr = compute_dxdr(r, x, pws, ws, game)
     n = length(pws)
     for idx in 1:(1 + n^2)
-        dJdr += (dJdx[Block(idx)]' * dxdr[Block(idx)])'
+        dKdr += (dKdx[Block(idx)]' * dxdr[Block(idx)])'
     end
-    dJdr
+    dKdr
 end
 
 """
