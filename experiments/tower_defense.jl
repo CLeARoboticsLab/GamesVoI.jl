@@ -5,8 +5,8 @@ using Zygote
 
 """ Nomenclature
     N                         : Number of worlds (=3)
-    pws = [P(w₁),..., P(wₙ)]  : prior distribution of k worlds for each signal, nx1 vector
-    ws                        : vector containing P2's cost parameters for each world. vector of nx1 vectors
+    ps = [P(w₁),..., P(wₙ)]  : prior distribution of k worlds for each signal, nx1 vector
+    βs                        : vector containing P2's cost parameters for each world. vector of nx1 vectors
     x[Block(1)]               : u(0), P1's action given signal s¹=0 depends on r
     x[Block(2)]               : u(1), P1's action given signal s¹=1
     x[Block(3)]               : u(2), P1's action given signal s¹=2
@@ -24,28 +24,28 @@ using Zygote
 Solve Stage 1 to find optimal scout allocation r.
 
 Inputs:
-    pws: prior distribution of k worlds, nx1 vector
-    ws: attacker preference for each direction, nx1 vector in the simplex
+    ps: prior distribution of k worlds, nx1 vector
+    βs: attacker preference for each direction, nx1 vector in the simplex
     r_init: initial guess scout allocation
 Outputs:
     r: optimal scout allocation
 """
-function solve_r(pws, ws; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=.00001, α=1)
+function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=.00001, α=1)
     cur_iter = 0
-    n = length(pws)
+    n = length(ps)
     n_players = 1 + n^2
     var_dim = n # TODO: Change this to be more general
-    game, _ = build_stage_2(pws, ws) 
+    game, _ = build_stage_2(ps, βs) 
     r = r_init
     println("0: r = $r")
-    x = compute_stage_2(r, pws, ws, game)
+    x = compute_stage_2(r, ps, βs, game)
     dKdr = zeros(Float64, n)
     while cur_iter < iter_limit # TODO: Break if change from last iteration is small
-        dKdr = compute_dKdr(r, x, pws, ws, game)
+        dKdr = compute_dKdr(r, x, ps, βs, game)
         r_temp = r - α .* dKdr
         r = project_onto_simplex(r_temp)
         x = compute_stage_2(
-            r, pws, ws, game;
+            r, ps, βs, game;
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
         )
         cur_iter += 1
@@ -73,7 +73,7 @@ end
 
 """
 Attacker cost function
-ws: vector containing P2's (attacker) preference parameters for each world.
+βs: vector containing P2's (attacker) preference parameters for each world.
 """
 function J_2(u, v, w)
     δ = v - u
@@ -89,25 +89,25 @@ end
 Build parametric game for Stage 2.
 
 Inputs: 
-    pws: prior distribution of k worlds for each signal, nx1 vector
-    ws: vector containing P1's cost parameters for each world. vector of nx1 vectors
+    ps: prior distribution of k worlds for each signal, nx1 vector
+    βs: vector containing P1's cost parameters for each world. vector of nx1 vectors
 Outputs: 
     parametric_game: ParametricGame object
     fs: vector of symbolic expressions for each player's objective function
 
 """
-function build_stage_2(pws, ws)
+function build_stage_2(ps, βs)
 
-    n = length(pws) # assume n_signals = n_worlds + 1
+    n = length(ps) # assume n_signals = n_worlds + 1
     n_players = 1 + n^2
 
     # Define Bayesian game player costs in Stage 2
-    p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * pws[w_idx] / (1 - θ' * pws)
+    p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * ps[w_idx] / (1 - θ' * ps)
     fs = [
         (x, θ) ->  sum([J_1(x[Block(1)], x[Block(w_idx + n + 1)]) * p_w_k_0(w_idx, θ) for w_idx in 1:n]), # u|s¹=0 IPI
-        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], ws[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
+        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], βs[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
         [(x, θ) -> J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)]) for w_idx in 1:n]..., # u|s¹={1,2,3} PI
-        [(x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], ws[w_idx]) for w_idx in 1:n]..., # v|s¹={1,2,3} PI
+        [(x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], βs[w_idx]) for w_idx in 1:n]..., # v|s¹={1,2,3} PI
     ]
 
     # equality constraints   
@@ -138,17 +138,17 @@ end
 """
 Compute objective at Stage 1
 """
-function compute_K(r, x, pws, ws)
-    n = length(pws)
-    sum([(1 - r[j]) * pws[j] * J_1(x[Block(1)], x[Block(j + n + 1)]) for j in 1:n]) + 
-    sum([r[j] * pws[j] * J_1(x[Block(j + 1)], x[Block(j + 2 * n + 1)]) for j in 1:n])
+function compute_K(r, x, ps, βs)
+    n = length(ps)
+    sum([(1 - r[j]) * ps[j] * J_1(x[Block(1)], x[Block(j + n + 1)]) for j in 1:n]) + 
+    sum([r[j] * ps[j] * J_1(x[Block(j + 1)], x[Block(j + 2 * n + 1)]) for j in 1:n])
 end
 
 """
 Compute derivative of Stage 1's objective function w.r.t. x
 """
-function compute_dKdx(r, x, pws, ws)
-    gradient(x -> compute_K(r, x, pws, ws), x)[1] 
+function compute_dKdx(r, x, ps, βs)
+    gradient(x -> compute_K(r, x, ps, βs), x)[1] 
 end
 
 """
@@ -156,16 +156,16 @@ Compute full derivative of Stage 1's objective function w.r.t. r
 
 Inputs: 
     x: decision variables of Stage 2
-    pws: prior distribution of k worlds, nx1 vector
+    ps: prior distribution of k worlds, nx1 vector
 
 Outputs: 
     djdq: Jacobian of Stage 1's objective function w.r.t. r
 """
-function compute_dKdr(r, x, pws, ws, game)
-    dKdx = compute_dKdx(r, x, pws, ws)
-    dKdr = gradient(r -> compute_K(r, x, pws, ws), r)[1]
-    dxdr = compute_dxdr(r, x, pws, ws, game)
-    n = length(pws)
+function compute_dKdr(r, x, ps, βs, game)
+    dKdx = compute_dKdx(r, x, ps, βs)
+    dKdr = gradient(r -> compute_K(r, x, ps, βs), r)[1]
+    dxdr = compute_dxdr(r, x, ps, βs, game)
+    n = length(ps)
     for idx in 1:(1 + n^2)
         dKdr += (dKdx[Block(idx)]' * dxdr[Block(idx)])'
     end
@@ -178,14 +178,14 @@ Solve stage 2 and return full derivative of objective function w.r.t. r
 
 Inputs: 
     r: scout allocation
-    pws: prior distribution of k worlds, nx1 vector
-    ws: vector containing P2's cost parameters for each world. vector of nx1 vectors
+    ps: prior distribution of k worlds, nx1 vector
+    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
 
 Outputs:
     dxdr: Blocked Jacobian of Stage 2's decision variables w.r.t. Stage 1's decision variable
 """
-function compute_dxdr(r, x, pws, ws, game; verbose=false)
-    n = length(pws)
+function compute_dxdr(r, x, ps, βs, game; verbose=false)
+    n = length(ps)
     n_players = 1 + n^2
     var_dim = n # TODO: Change this to be more general
 
@@ -206,13 +206,13 @@ Return Stage 2 decision variables given scout allocation r
 
 Input: 
     r: scout allocation
-    pws: prior distribution of k worlds, nx1 vector
-    ws: vector containing P2's cost parameters for each world. Vector of nx1 vectors
+    ps: prior distribution of k worlds, nx1 vector
+    βs: vector containing P2's cost parameters for each world. Vector of nx1 vectors
 Output: 
     x: decision variables of Stage 2 given r. BlockedArray with a block per player
 """
-function compute_stage_2(r, pws, ws, game; initial_guess = nothing, verbose=false)
-    n = length(pws) # assume n_signals = n_worlds + 1
+function compute_stage_2(r, ps, βs, game; initial_guess = nothing, verbose=false)
+    n = length(ps) # assume n_signals = n_worlds + 1
     n_players = 1 + n^2
     var_dim = n # TODO: Change this to be more general
 
