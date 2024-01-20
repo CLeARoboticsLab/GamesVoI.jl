@@ -48,8 +48,8 @@ function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
         x = compute_stage_2(
             r, ps, βs, game;
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
-            )
-            cur_iter += 1
+        )
+        cur_iter += 1
         # println("$cur_iter: r = $r")
     end
     return r
