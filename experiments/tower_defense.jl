@@ -1,6 +1,6 @@
 using GamesVoI
 using BlockArrays
-using LinearAlgebra: norm_sqr
+using LinearAlgebra: norm_sqr, norm
 using Zygote  
 
 """ Nomenclature
@@ -49,7 +49,7 @@ function solve_r(pws, ws; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
         )
         cur_iter += 1
-        println("$cur_iter: r = $r, dJdr = $dJdr")
+        # println("$cur_iter: r = $r")
     end
     println("$cur_iter: r = $r")
     return r
@@ -169,6 +169,7 @@ function compute_dKdr(r, x, pws, ws, game)
     for idx in 1:(1 + n^2)
         dKdr += (dKdx[Block(idx)]' * dxdr[Block(idx)])'
     end
+    println("dKdx = $(norm(dKdx)), dKdr = $(norm(dKdr))")
     dKdr
 end
 
