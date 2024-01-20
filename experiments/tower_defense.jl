@@ -140,7 +140,8 @@ Compute objective at Stage 1
 """
 function compute_J(r, x, pws, ws)
     n = length(pws)
-    1/(1 - r' * pws) * sum([(1 - r[j]) * pws[j] * J_1(x[Block(1)], x[Block(j + n + 1)]) for j in 1:n])
+    sum([(1 - r[j]) * pws[j] * J_1(x[Block(1)], x[Block(j + n + 1)]) for j in 1:n]) + 
+    sum([r[j] * pws[j] * J_1(x[Block(j + 1)], x[Block(j + 2 * n + 1)]) for j in 1:n])
 end
 
 """
