@@ -42,16 +42,16 @@ function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
     dKdr = zeros(Float64, n)
     while cur_iter < iter_limit # TODO: Break if change from last iteration is small
         dKdr = compute_dKdr(r, x, ps, βs, game)
-        r_temp = r - α .* dKdr
+        println("dKdr = $(dKdr/maximum(dKdr))") # Issue: dKdr is mostly orthogonal to simplex constraints. This means that the effective step size is very small and gets rounded off.
+        r_temp = r - α .* dKdr 
         r = project_onto_simplex(r_temp)
         x = compute_stage_2(
             r, ps, βs, game;
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
-        )
-        cur_iter += 1
+            )
+            cur_iter += 1
         # println("$cur_iter: r = $r")
     end
-    println("$cur_iter: r = $r")
     return r
 end
 
@@ -76,8 +76,7 @@ Attacker cost function
 βs: vector containing P2's (attacker) preference parameters for each world.
 """
 function J_2(u, v, w)
-    δ = v - u
-    -sum([activate(δ[j]) * w[j] * δ[j]^2 for j in eachindex(w)])
+    -sum([w[ii]^(v[ii]-u[ii]) for ii in eachindex(w)])
 end 
 
 "Approximate Heaviside step function"
@@ -169,7 +168,6 @@ function compute_dKdr(r, x, ps, βs, game)
     for idx in 1:(1 + n^2)
         dKdr += (dKdx[Block(idx)]' * dxdr[Block(idx)])'
     end
-    println("dKdx = $(norm(dKdx)), dKdr = $(norm(dKdr))")
     dKdr
 end
 
