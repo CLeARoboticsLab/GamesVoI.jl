@@ -2,45 +2,53 @@ module scout_visuals
 
 using GamesVoI
 using GLMakie
+using LinearAlgebra
+using JSON3
 include("tower_defense.jl")
 
 Makie.inline!(false)
 
-# export demo
+# Globals:
+num_worlds = 3
+prior_range_step = 0.01
+prior_range = 0:prior_range_step:1
+save_file_name = "precomputed_r.txt"
+save_precision = 4
+
+# Game Parameters
+attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
+
+# Visual parameters
+    # Axis parameters
+        # borders
+        ax_aspect = 1 
+        ax_limits = (0, 1, 0, 1)
+        # title
+        ax_titlegap = 48
+        ax_titlesize = 60
+        # x-axis
+        ax_xautolimitmargin = (0, 0)
+        ax_xgridwidth = 2
+        ax_xticklabelsize = 36
+        ax_xticks = -10:10
+        ax_xticksize = 18
+        # y-axis
+        ax_yautolimitmargin = (0, 0)
+        ax_ygridwidth = 2
+        ax_yticklabelpad = 14
+        ax_yticklabelsize = 36
+        ax_yticks = -10:10
+        ax_yticksize = 18
+
 """ TODO: 
 1. Do visualiation for each given world/signal received by Player 1 
 2. Solve for all different combinations and store them in a "look-up dictionary" so that you dont have to solve the game all the time
 """
 
 function demo()
-
-    # Game parameters
-    attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
-
     ## 1. Sliders
     # Initialize plot
     fig = Figure(; size = (3840, 2160))
-
-    # Axis parameters
-    # borders
-    ax_aspect = 1 
-    ax_limits = (0, 1, 0, 1)
-    # title
-    ax_titlegap = 48
-    ax_titlesize = 60
-    # x-axis
-    ax_xautolimitmargin = (0, 0)
-    ax_xgridwidth = 2
-    ax_xticklabelsize = 36
-    ax_xticks = -10:10
-    ax_xticksize = 18
-    # y-axis
-    ax_yautolimitmargin = (0, 0)
-    ax_ygridwidth = 2
-    ax_yticklabelpad = 14
-    ax_yticklabelsize = 36
-    ax_yticks = -10:10
-    ax_yticksize = 18
 
     # Add axis for each direction
     ax_north = Axis(fig[1,2],
@@ -92,21 +100,19 @@ function demo()
     # Create sliders
     sg = SliderGrid(
         fig[3, 2],
-        (label = "prior_north", range = 0:0.01:1, format = "{:.2f}", startvalue = 01),
-        (label = "prior_east", range = 0:0.01:1, format = "{:.2f}", startvalue = 0),
-        (label = "prior_west", range = 0:0.01:1, format = "{:.2f}", startvalue = 0)
+        (label = "prior_north", range = prior_range, format = "{:.2f}", startvalue = 0),
+        (label = "prior_east", range = prior_range, format = "{:.2f}", startvalue = 0),
+        (label = "prior_west", range = prior_range, format = "{:.2f}", startvalue = 0)
     )
 
-    # TODO: Priors need to be in the simplex. Values should add up to 1.0.
     prior_north_listener = sg.sliders[1].value
     prior_east_listener = sg.sliders[2].value
     prior_west_listener = sg.sliders[3].value
 
-    # TODO: Integrate with solve_r function
-    #r = @lift(solve_r([$prior_north_listener; $prior_east_listener; $prior_west_listener], attacker_preference))
-
     #temporary
-    r = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
+    priors = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
+    normalize!(priors)
+    r = solve_r(priors, attacker_preference)
     # print(r)
     scat1 = scatter!(ax_north, r, r, markersize = 10, color = :red)
 
@@ -172,5 +178,98 @@ function demo()
 #demo function end
 end
 
+function compute_all_r_save_to_file()
+    # save_file = open(save_file_name, "w+")
+    hashmap = Dict{Tuple{Float64, Float64, Float64}, Tuple{Float64, Float64, Float64}}()
+    for prior_north in prior_range
+        for prior_east in prior_range
+            for prior_west in prior_range
+                current_prior = (prior_north, prior_east, prior_west)
+                r = solve_r(current_prior, attacker_preference)
+                hashmap[current_prior] = round.(r, digits = save_precision)
+            end
+        end
+    end
+    JSON3.write(save_file_name, hashmap)
+    # write(save_file, hashmap)
+    # close(save_file)
+end
+
+function draw_given()
+    # saved_computations = open(save_file_name, "r")
+    # hashmap = read(save_file, Dict{Tuple{Float64, Float64, Float64}, Tuple{Float64, Float64, Float64}})
+    saved_computations = read(save_file_name, String)
+    hashmap = JSON3.read(saved_computations, Dict{Tuple{Float64, Float64, Float64}, Tuple{Float64, Float64, Float64}})
+
+
+    fig = Figure(; size = (3840, 2160))
+
+    # Add axis for each direction
+    ax_north = Axis(fig[1,2],
+        # borders
+        aspect = ax_aspect, limits = ax_limits,
+        # title
+        title = "North",
+        titlegap = ax_titlegap, titlesize = ax_titlesize,
+        # x-axis
+        xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
+        xticklabelsize = ax_xticklabelsize,
+        xticks = ax_xticks, xticksize = ax_xticksize,
+        # y-axis
+        yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
+        yticklabelpad = ax_yticklabelpad,
+        yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
+    )
+    ax_east = Axis(fig[2,1],
+        # borders
+        aspect = ax_aspect, limits = ax_limits,
+        # title
+        title = "East",
+        titlegap = ax_titlegap, titlesize = ax_titlesize,
+        # x-axis
+        xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
+        xticklabelsize = ax_xticklabelsize,
+        xticks = ax_xticks, xticksize = ax_xticksize,
+        # y-axis
+        yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
+        yticklabelpad = ax_yticklabelpad,
+        yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
+    )
+    ax_west = Axis(fig[2,3],
+        # borders
+        aspect = ax_aspect, limits = ax_limits,
+        # title
+        title = "West",
+        titlegap = ax_titlegap, titlesize = ax_titlesize,
+        # x-axis
+        xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
+        xticklabelsize = ax_xticklabelsize,
+        xticks = ax_xticks, xticksize = ax_xticksize,
+        # y-axis
+        yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
+        yticklabelpad = ax_yticklabelpad,
+        yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
+    )
+
+    # Create sliders
+    sg = SliderGrid(
+        fig[3, 2],
+        (label = "prior_north", range = prior_range, format = "{:.2f}", startvalue = 0),
+        (label = "prior_east", range = prior_range, format = "{:.2f}", startvalue = 0),
+        (label = "prior_west", range = prior_range, format = "{:.2f}", startvalue = 0)
+    )
+
+    prior_north_listener = sg.sliders[1].value
+    prior_east_listener = sg.sliders[2].value
+    prior_west_listener = sg.sliders[3].value
+
+    priors = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
+    if priors[1] + priors[2] + priors[3] == 1
+        r = hashmap[(priors[1], priors[2], priors[3])]
+    end
+    # print(r)
+    scat1 = scatter!(ax_north, r, r, markersize = 10, color = :red)
+    display(fig)
+end
 #module end
 end
