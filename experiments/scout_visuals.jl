@@ -15,7 +15,28 @@ function demo()
 
     ## 1. Sliders
     # Initialize plot
-    fig = Figure(;size = (3840, 2160))
+    fig = Figure(; size = (600, 400))
+
+    # Axis parameters
+    # borders
+    ax_aspect = 1 
+    ax_limits = (0, 1, 0, 1)
+    # title
+    ax_titlegap = 48
+    ax_titlesize = 60
+    # x-axis
+    ax_xautolimitmargin = (0, 0)
+    ax_xgridwidth = 2
+    ax_xticklabelsize = 36
+    ax_xticks = -10:10
+    ax_xticksize = 18
+    # y-axis
+    ax_yautolimitmargin = (0, 0)
+    ax_ygridwidth = 2
+    ax_yticklabelpad = 14
+    ax_yticklabelsize = 36
+    ax_yticks = -10:10
+    ax_yticksize = 18
 
     # Add axis for each direction
     ax_north = Axis(fig[1,2],
