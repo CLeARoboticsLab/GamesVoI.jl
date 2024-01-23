@@ -7,15 +7,19 @@ include("tower_defense.jl")
 Makie.inline!(false)
 
 # export demo
+""" TODO: 
+1. Do visualiation for each given world/signal received by Player 1 
+2. Solve for all different combinations and store them in a "look-up dictionary" so that you dont have to solve the game all the time
+"""
 
 function demo()
 
     # Game parameters
-    attacker_preference = [.1; .2; .7]
+    attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
 
     ## 1. Sliders
     # Initialize plot
-    fig = Figure(; size = (600, 400))
+    fig = Figure(; size = (3840, 2160))
 
     # Axis parameters
     # borders
@@ -93,12 +97,12 @@ function demo()
         (label = "prior_west", range = 0:0.01:1, format = "{:.2f}", startvalue = 0)
     )
 
-    # Create listener
+    # TODO: Priors need to be in the simplex. Values should add up to 1.0.
     prior_north_listener = sg.sliders[1].value
     prior_east_listener = sg.sliders[2].value
     prior_west_listener = sg.sliders[3].value
 
-    # TODO
+    # TODO: Integrate with solve_r function
     #r = @lift(solve_r([$prior_north_listener; $prior_east_listener; $prior_west_listener], attacker_preference))
 
     #temporary
