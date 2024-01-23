@@ -11,6 +11,7 @@ Makie.inline!(false)
 # Globals:
 num_worlds = 3
 prior_range_step = 0.01
+prior_range_step_precision = 2
 prior_range = 0:prior_range_step:1
 save_file_name = "precomputed_r.txt"
 save_precision = 4
@@ -110,8 +111,9 @@ function demo()
     prior_west_listener = sg.sliders[3].value
 
     #temporary
-    priors = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
-    normalize!(priors)
+    observable_priors = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
+    priors = normalize(observable_priors[])
+
     r = solve_r(priors, attacker_preference)
     # print(r)
     scat1 = scatter!(ax_north, r, r, markersize = 10, color = :red)
@@ -263,10 +265,9 @@ function draw_given()
     prior_east_listener = sg.sliders[2].value
     prior_west_listener = sg.sliders[3].value
 
-    priors = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
-    if priors[1] + priors[2] + priors[3] == 1
-        r = hashmap[(priors[1], priors[2], priors[3])]
-    end
+    observable_priors = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
+    priors = normalize(observable_priors[])
+    priors .= round.(priors, digits = prior_range_step_precision)
     # print(r)
     scat1 = scatter!(ax_north, r, r, markersize = 10, color = :red)
     display(fig)
