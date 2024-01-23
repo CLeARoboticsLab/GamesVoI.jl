@@ -31,6 +31,7 @@ Outputs:
     r: optimal scout allocation
 """
 function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=.00001, α=1)
+    @assert sum(r_init) ≈ 1.0 "Initial guess r must be a probability distribution"
     cur_iter = 0
     n = length(ps)
     n_players = 1 + n^2
@@ -42,15 +43,14 @@ function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
     dKdr = zeros(Float64, n)
     while cur_iter < iter_limit # TODO: Break if change from last iteration is small
         dKdr = compute_dKdr(r, x, ps, βs, game)
-        println("dKdr = $(dKdr/maximum(dKdr))") # Issue: dKdr is mostly orthogonal to simplex constraints. This means that the effective step size is very small and gets rounded off.
         r_temp = r - α .* dKdr 
-        r = project_onto_simplex(r_temp)
+        r = project_onto_simplex(r_temp) 
+        println("r_temp = $(round.(r_temp, digits=3)), dKdr = $(round.(dKdr, digits=3)) r = $(round.(r, digits=3))")
         x = compute_stage_2(
             r, ps, βs, game;
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
         )
         cur_iter += 1
-        # println("$cur_iter: r = $r")
     end
     return r
 end
