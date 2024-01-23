@@ -99,8 +99,8 @@ function build_stage_2(ps, βs)
     p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * ps[w_idx] / (1 - θ' * ps)
     fs = [
         (x, θ) ->  sum([J_1(x[Block(1)], x[Block(w_idx + n + 1)]) * p_w_k_0(w_idx, θ) for w_idx in 1:n]), # u|s¹=0 IPI
-        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], βs[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
         [(x, θ) -> J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)]) for w_idx in 1:n]..., # u|s¹={1,2,3} PI
+        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], βs[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
         [(x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], βs[w_idx]) for w_idx in 1:n]..., # v|s¹={1,2,3} PI
     ]
 
