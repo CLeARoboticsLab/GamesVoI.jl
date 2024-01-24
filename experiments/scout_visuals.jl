@@ -111,12 +111,22 @@ function demo()
     prior_west_listener = sg.sliders[3].value
 
     #temporary
-    observable_priors = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
-    priors = normalize(observable_priors[])
+    observable_priors = @lift(round.(normalize([$prior_north_listener; $prior_east_listener; $prior_west_listener]), 
+    digits = prior_range_step_precision))
 
-    r = solve_r(priors, attacker_preference)
+    arr = [.1, .2, .3, .4, .5, .6, .7, .8]
+
+    f1(x) = arr[1] .+ x
+    f2(x) = x
+
+    r1 = lift(f1, observable_priors)
+    r2 = lift(f2, observable_priors)
+    # priors = normalize(observable_priors[])
+
+    # r = solve_r(priors, attacker_preference)
+    # r = priors
     # print(r)
-    scat1 = scatter!(ax_north, r, r, markersize = 10, color = :red)
+    scat1 = scatter!(ax_north, r1, r2, markersize = 10, color = :red)
 
     # Plot line
     # line1 = lines!(ax1, x, y, linewidth = 2, color = :blue)
@@ -265,9 +275,13 @@ function draw_given()
     prior_east_listener = sg.sliders[2].value
     prior_west_listener = sg.sliders[3].value
 
-    observable_priors = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
-    priors = normalize(observable_priors[])
-    priors .= round.(priors, digits = prior_range_step_precision)
+    priors = @lift(round.(normalize([$prior_north_listener; $prior_east_listener; $prior_west_listener]),
+    digits = prior_range_step_precision))
+
+    get_r(x) = hashmap[x[]]
+
+    r = lift(get_r, priors)
+
     # print(r)
     scat1 = scatter!(ax_north, r, r, markersize = 10, color = :red)
     display(fig)
