@@ -10,9 +10,9 @@ Makie.inline!(false)
 
 # Globals:
 num_worlds = 3
-prior_range_step = 0.01
-prior_range_step_precision = 2
-prior_range = 0:prior_range_step:1
+prior_range_step = 0.1
+prior_range_step_precision = 1
+prior_range = 0.001:prior_range_step:1
 save_file_name = "precomputed_r.txt"
 save_precision = 4
 
@@ -46,7 +46,7 @@ attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
 2. Solve for all different combinations and store them in a "look-up dictionary" so that you dont have to solve the game all the time
 """
 
-function demo()
+function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]])
     ## 1. Sliders
     # Initialize plot
     fig = Figure(; size = (3840, 2160))
@@ -98,6 +98,12 @@ function demo()
         yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
     )
 
+    ax_simplex = Axis3(fig[2,2], aspect = (1,1,1), 
+        limits = ((0.0, 1.0, 0.0, 1.0, 0.0, 1.1)),
+        xreversed = true, 
+        yreversed = true
+    )
+
     # Create sliders
     sg = SliderGrid(
         fig[3, 2],
@@ -109,82 +115,37 @@ function demo()
     prior_north_listener = sg.sliders[1].value
     prior_east_listener = sg.sliders[2].value
     prior_west_listener = sg.sliders[3].value
+ 
+    # TODO:
+    #scat1 = scatter!(ax_north, r1, r2, markersize = 10, color = :red)
 
-    #temporary
-    observable_priors = @lift(round.(normalize([$prior_north_listener; $prior_east_listener; $prior_west_listener]), 
-    digits = prior_range_step_precision))
+    # Plot priors on the Simplex
+    scatterlines!(ax_simplex, [1;0;0;1], [0;1;0;0], [0;0;1;0], markersize = 15)
+    #scat_priors = @lift scatter!(ax_simplex, $observable_priors[1], $observable_priors[2], $observable_priors[3]; markersize = 15, color = :red)
+    get_val1(x) = x[1]
+    get_val2(x) = x[2]
+    get_val3(x) = x[3]
 
-    arr = [.1, .2, .3, .4, .5, .6, .7, .8]
+    norm1(x) = round.(normalize(x, 1), digits=1)
 
-    f1(x) = arr[1] .+ x
-    f2(x) = x
+    # Normalize priors
+    observable_priors = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
+    normalized_observable_p = lift(norm1, observable_priors)
 
-    r1 = lift(f1, observable_priors)
-    r2 = lift(f2, observable_priors)
-    # priors = normalize(observable_priors[])
+    p1 = lift(get_val1, normalized_observable_p)
+    p2 = lift(get_val2, normalized_observable_p)
+    p3 = lift(get_val3, normalized_observable_p)
 
-    # r = solve_r(priors, attacker_preference)
-    # r = priors
-    # print(r)
-    scat1 = scatter!(ax_north, r1, r2, markersize = 10, color = :red)
+    scat_priors = scatter!(ax_simplex, p1, p2, p3 ; markersize = 15, color = :red)
 
-    # Plot line
-    # line1 = lines!(ax1, x, y, linewidth = 2, color = :blue)
+    @lift println("priors: ", $normalized_observable_p)
 
-    ## Another way ##
-    # sliderob = [s.value for s in sg.sliders]
+    # Solve for r 
+    obs_r(x) = solve_r(x, attacker_preference)[1]
+    scout_allocation = lift(obs_r, normalized_observable_p)
 
-    # y = lift(sliderob...) do slope, intercept
-    #     slope .* x .+ intercept
-    # end
-    # y = lift((slope, intercept) -> slope .* x .+ intercept, sliderob...) # also same 
-
-    # Plot line
-    # line1 = lines!(ax1, x, y, linewidth = 2, color = :blue)
-
-    # # 2. Button
-    # fig[3,1] = buttongrid = GridLayout(tellwidth = false)
-    # buttonlabels = ["Red", "Green", "Blue"]
-
-    # buttons = buttongrid[1, 1:3] = [
-    #     Button(fig, label = l, height = 60, width = 250, fontsize = 30) for l in buttonlabels]
-
-    # bt_sublayout = GridLayout(height = 150)
-    # fig[3,1] = bt_sublayout
-
-    # # Random dataset we want to see
-
-    # x = -10:0.01:10
-    # data = []
-
-    # for i in 1:3
-    #     d = rand(-10:0.01:10, length(x))
-    #     push!(data, d)
-    # end
-
-    # # Set y_data as observable
-    # y = Observable(data[1])
-
-    # # Set color as observable
-    # colors = [:red, :green, :blue]
-    # c = Observable(colors[1])
-
-    # # Set markersize as observable
-    # markersizes = [8, 12, 16]
-    # ms = Observable(markersizes[1])
-
-    # # Add scatter plot
-    # scat1 = scatter!(ax1, x, y, markersize = ms, color = c)
-
-    # # Button instructions using on...do...end syntax
-
-    # for i in 1:3
-    #     on(buttons[i].clicks) do _
-    #         y[] = data[i]
-    #         c[] = colors[i]
-    #         ms[] = markersizes[i]
-    #     end 
-    # end
+    scout_north = scatter!(ax_north, scout_allocation, scout_allocation, markersize = 10, color = :red)
+   
     display(fig)
 
 #demo function end
@@ -197,6 +158,7 @@ function compute_all_r_save_to_file()
         for prior_east in prior_range
             for prior_west in prior_range
                 current_prior = (prior_north, prior_east, prior_west)
+                Main.@infiltrate
                 r = solve_r(current_prior, attacker_preference)
                 hashmap[current_prior] = round.(r, digits = save_precision)
             end
@@ -275,6 +237,7 @@ function draw_given()
     prior_east_listener = sg.sliders[2].value
     prior_west_listener = sg.sliders[3].value
 
+    # TODO: We want normalized priors to appear on GUI (next to slider)
     priors = @lift(round.(normalize([$prior_north_listener; $prior_east_listener; $prior_west_listener]),
     digits = prior_range_step_precision))
 
