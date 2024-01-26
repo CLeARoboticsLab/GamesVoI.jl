@@ -122,31 +122,38 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     # Plot priors on the Simplex
     scatterlines!(ax_simplex, [1;0;0;1], [0;1;0;0], [0;0;1;0], markersize = 15)
     #scat_priors = @lift scatter!(ax_simplex, $observable_priors[1], $observable_priors[2], $observable_priors[3]; markersize = 15, color = :red)
-    get_val1(x) = x[1]
-    get_val2(x) = x[2]
-    get_val3(x) = x[3]
-
+    get_val(x, index) = x[index]
     norm1(x) = round.(normalize(x, 1), digits=1)
 
     # Normalize priors
     observable_priors = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
     normalized_observable_p = lift(norm1, observable_priors)
 
-    p1 = lift(get_val1, normalized_observable_p)
-    p2 = lift(get_val2, normalized_observable_p)
-    p3 = lift(get_val3, normalized_observable_p)
+    p1 = lift(get_val, normalized_observable_p, 1)
+    p2 = lift(get_val, normalized_observable_p, 2)
+    p3 = lift(get_val, normalized_observable_p, 3)
 
     scat_priors = scatter!(ax_simplex, p1, p2, p3 ; markersize = 15, color = :red)
 
     @lift println("priors: ", $normalized_observable_p)
 
     # Solve for r 
-    obs_r(x) = solve_r(x, attacker_preference)[1]
-    scout_allocation = lift(obs_r, normalized_observable_p)
+    obs_r(x) = solve_r(x, attacker_preference)
+    scout_allocation_north = lift(get_val, lift(obs_r, normalized_observable_p), 1)
+    scout_allocation_east = lift(get_val, lift(obs_r, normalized_observable_p), 2)
+    scout_allocation_west = lift(get_val, lift(obs_r, normalized_observable_p), 3)
 
-    scout_north = scatter!(ax_north, scout_allocation, scout_allocation, markersize = 10, color = :red)
+    scatter!(ax_north, scout_allocation_north, scout_allocation_north, markersize = 10, color = :red)
+    scatter!(ax_east, scout_allocation_east, scout_allocation_east, markersize = 10, color = :purple)
+    scatter!(ax_west, scout_allocation_west, scout_allocation_west, markersize = 10, color = :green)
    
-    display(fig)
+    # Try
+    f, ax, plt = pie(@lift([$scout_allocation_north, $scout_allocation_east, $scout_allocation_west]),
+        normalize = false, 
+        color = [:red, :purple, :green]
+    )
+    fig[1,1] = f
+    fig
 
 #demo function end
 end
