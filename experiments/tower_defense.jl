@@ -2,7 +2,7 @@ using GamesVoI
 using BlockArrays
 using LinearAlgebra: norm_sqr, norm
 using Zygote  
-using GLMakie: heatmap!, Figure, Axis, Colorbar, text
+using GLMakie: Figure, Axis, Colorbar, heatmap!, text!
 
 """ Nomenclature
     N                         : Number of worlds (=3)
@@ -81,7 +81,7 @@ Inputs:
 Outputs:
     Ks: 2D Matrix of stage 1's objective function values for each r in the simplex.
 """
-function calculate_stage_1_heatmap(ps, βs; dr = 0.1)
+function calculate_stage_1_heatmap(ps, βs; dr = 0.05)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
     game, _ = build_stage_2(ps, βs)
     rs = 0:dr:1
@@ -113,9 +113,13 @@ Output:
 function display_heatmap(ps, Ks)
     rs = 0:1/(size(Ks)[1] - 1):1
     fig = Figure(size = (600, 400))  
-    ax = Axis(fig[1, 1]; xlabel = "r₁", ylabel = "r₂", aspect = 1)    
+    ax = Axis(fig[1, 1]; xlabel="r₁", ylabel="r₂", 
+    title="Stage 1 cost as a function of r \n priors = $(round.(ps, digits=2))", aspect=1)
     hmap = heatmap!(ax, rs, rs, Ks)
     Colorbar(fig[1, 2], hmap; label = "K", width = 15, ticksize = 15, tickalign = 1)
+    text!(ax, "$(round(ps[1], digits=2))", position = (0.9, 0.15), font = "Bold")
+    text!(ax, "$(round(ps[2], digits=2))", position = (0.1, 0.95), font = "Bold")
+    text!(ax, "$(round(ps[3], digits=2))", position = (0.1, 0.1), font = "Bold")
     fig
 end
 
