@@ -8,14 +8,6 @@ include("tower_defense.jl")
 
 Makie.inline!(false)
 
-# Globals:
-num_worlds = 3
-prior_range_step = 0.1
-prior_range_step_precision = 1
-prior_range = 0.001:prior_range_step:1
-save_file_name = "precomputed_r.txt"
-save_precision = 4
-
 # Game Parameters
 attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
 
@@ -47,9 +39,16 @@ attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
 """
 
 function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]])
-    ## 1. Sliders
+    
+    num_worlds = 3
+    prior_range_step = 0.01
+    prior_range_step_precision = 1
+    prior_range = 0.01:prior_range_step:1
+    save_file_name = "precomputed_r.txt"
+    save_precision = 4
+
     # Initialize plot
-    fig = Figure(; size = (3840, 2160))
+    fig = Figure()
 
     # Add axis for each direction
     ax_north = Axis(fig[1,2],
@@ -107,55 +106,36 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     # Create sliders
     sg = SliderGrid(
         fig[3, 2],
-        (label = "prior_north", range = prior_range, format = "{:.2f}", startvalue = 0),
-        (label = "prior_east", range = prior_range, format = "{:.2f}", startvalue = 0),
-        (label = "prior_west", range = prior_range, format = "{:.2f}", startvalue = 0)
+        (label = "prior_north", range = prior_range, format = "{:.2f}", startvalue = 1.0),
+        (label = "prior_east", range = prior_range, format = "{:.2f}", startvalue = 1.0),
+        (label = "prior_west", range = prior_range, format = "{:.2f}", startvalue = 1.0)
     )
-
-    prior_north_listener = sg.sliders[1].value
-    prior_east_listener = sg.sliders[2].value
-    prior_west_listener = sg.sliders[3].value
+    observable_prior_sliders = [s.value for s in sg.sliders]
  
-    # TODO:
-    #scat1 = scatter!(ax_north, r1, r2, markersize = 10, color = :red)
-
     # Plot priors on the Simplex
     scatterlines!(ax_simplex, [1;0;0;1], [0;1;0;0], [0;0;1;0], markersize = 15)
-    #scat_priors = @lift scatter!(ax_simplex, $observable_priors[1], $observable_priors[2], $observable_priors[3]; markersize = 15, color = :red)
-    get_val(x, index) = x[index]
-    norm1(x) = round.(normalize(x, 1), digits=1)
 
     # Normalize priors
-    observable_priors = @lift([$prior_north_listener; $prior_east_listener; $prior_west_listener])
-    normalized_observable_p = lift(norm1, observable_priors)
-
-    p1 = lift(get_val, normalized_observable_p, 1)
-    p2 = lift(get_val, normalized_observable_p, 2)
-    p3 = lift(get_val, normalized_observable_p, 3)
-
-    scat_priors = scatter!(ax_simplex, p1, p2, p3 ; markersize = 15, color = :red)
-
+    normalized_observable_p = lift(observable_prior_sliders...) do a, b, c
+        round.(normalize([a,b,c], 1), digits = 2)
+    end
     @lift println("priors: ", $normalized_observable_p)
 
-    # Solve for r 
-    obs_r(x) = solve_r(x, attacker_preference)
-    scout_allocation_north = lift(get_val, lift(obs_r, normalized_observable_p), 1)
-    scout_allocation_east = lift(get_val, lift(obs_r, normalized_observable_p), 2)
-    scout_allocation_west = lift(get_val, lift(obs_r, normalized_observable_p), 3)
+    p1, p2, p3 = [lift((x,i)->x[i], normalized_observable_p, idx) for idx in 1:num_worlds]
+    scatter!(ax_simplex, p1, p2, p3 ; markersize = 15, color = :red)
 
-    scatter!(ax_north, scout_allocation_north, scout_allocation_north, markersize = 10, color = :red)
-    scatter!(ax_east, scout_allocation_east, scout_allocation_east, markersize = 10, color = :purple)
-    scatter!(ax_west, scout_allocation_west, scout_allocation_west, markersize = 10, color = :green)
+    # Solve for scout_allocation, r 
+    observable_r = on(normalized_observable_p) do x
+        solve_r(x, attacker_preference)
+    end
+    scout_north, scout_east, scout_west = [lift((x,i)->x[i], observable_r.observable, idx) for idx in 1:num_worlds]
+
+    # TODO: Be creative with scout_allocation
+    scatter!(ax_north, scout_north, scout_north, markersize = 15, color = :red)
+    scatter!(ax_east, scout_east, scout_east, markersize = 15, color = :purple)
+    scatter!(ax_west, scout_west, scout_west, markersize = 15, color = :green)
    
-    # Try
-    f, ax, plt = pie(@lift([$scout_allocation_north, $scout_allocation_east, $scout_allocation_west]),
-        normalize = false, 
-        color = [:red, :purple, :green]
-    )
-    fig[1,1] = f
-    fig
-
-#demo function end
+    display(fig)
 end
 
 function compute_all_r_save_to_file()
@@ -165,7 +145,6 @@ function compute_all_r_save_to_file()
         for prior_east in prior_range
             for prior_west in prior_range
                 current_prior = (prior_north, prior_east, prior_west)
-                Main.@infiltrate
                 r = solve_r(current_prior, attacker_preference)
                 hashmap[current_prior] = round.(r, digits = save_precision)
             end
@@ -256,5 +235,6 @@ function draw_given()
     scat1 = scatter!(ax_north, r, r, markersize = 10, color = :red)
     display(fig)
 end
+
 #module end
 end
