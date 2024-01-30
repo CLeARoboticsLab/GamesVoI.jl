@@ -1,12 +1,13 @@
 using GamesVoI
 using BlockArrays
-using LinearAlgebra: norm_sqr
+using LinearAlgebra: norm_sqr, norm
 using Zygote  
+using GLMakie: heatmap!, Figure, Axis, Colorbar, text
 
 """ Nomenclature
-    n                         : Number of worlds (=3)
-    pws = [P(w₁),..., P(wₙ)]  : prior distribution of k worlds for each signal, nx1 vector
-    ws                        : vector containing P2's cost parameters for each world. vector of nx1 vectors
+    N                         : Number of worlds (=3)
+    ps = [P(w₁),..., P(wₙ)]  : prior distribution of k worlds for each signal, nx1 vector
+    βs                        : vector containing P2's cost parameters for each world. vector of nx1 vectors
     x[Block(1)]               : u(0), P1's action given signal s¹=0 depends on r
     x[Block(2)]               : u(1), P1's action given signal s¹=1
     x[Block(3)]               : u(2), P1's action given signal s¹=2
@@ -24,35 +25,98 @@ using Zygote
 Solve Stage 1 to find optimal scout allocation r.
 
 Inputs:
-    pws: prior distribution of k worlds, nx1 vector
-    ws: attacker preference for each direction, nx1 vector in the simplex
+    ps: prior distribution of k worlds, nx1 vector
+    βs: attacker preference for each direction, nx1 vector in the simplex
     r_init: initial guess scout allocation
 Outputs:
     r: optimal scout allocation
 """
-function solve_r(pws, ws; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=.00001, α=1)
+function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=.00001, α=1)
+    @assert sum(r_init) ≈ 1.0 "Initial guess r must be a probability distribution"
     cur_iter = 0
-    n = length(pws)
+    n = length(ps)
     n_players = 1 + n^2
     var_dim = n # TODO: Change this to be more general
-    game, _ = build_stage_2(pws, ws) 
+    game, _ = build_stage_2(ps, βs) 
     r = r_init
     println("0: r = $r")
-    x = compute_stage_2(r, pws, ws, game)
-    dJdr = zeros(Float64, n)
+    x = compute_stage_2(r, ps, βs, game)
+    dKdr = zeros(Float64, n)
     while cur_iter < iter_limit # TODO: Break if change from last iteration is small
-        dJdr = compute_dJdr(r, x, pws, ws, game)
-        r_temp = r - α .* dJdr
-        r = project_onto_simplex(r_temp)
+        dKdr = compute_dKdr(r, x, ps, βs, game)
+        r_temp = r - α .* dKdr 
+        r = project_onto_simplex(r_temp) 
         x = compute_stage_2(
-            r, pws, ws, game;
+            r, ps, βs, game;
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
         )
+        # compute stage 1 cost function for current r and x 
+        K = compute_K(r, x, ps, βs)
+        # println("r_temp = $(round.(r_temp, digits=3)), dKdr = $(round.(dKdr, digits=3)) r = $(round.(r, digits=3)) K = $(round(K, digits=3))")
+        println("r = $(round.(r, digits=3))")
         cur_iter += 1
-        println("$cur_iter: r = $r, dJdr = $dJdr")
     end
-    println("$cur_iter: r = $r")
     return r
+end
+
+"""
+Temp. script to calculate and plot heatmap of Stage 1 cost function 
+"""
+function run_heatmap()
+    ps = [1/3, 1/3, 1/3]
+    βs = [[1, 0.5, 0.5], [0.5, 1, 0.5], [0.5, 0.5, 1]]
+    Ks = calculate_stage_1_heatmap(ps, βs)
+    fig = display_heatmap(ps, Ks)
+    fig
+end
+
+
+"""
+Calculate Stage 1's objective function for all possible values of r.
+
+Inputs: 
+    ps: prior distribution of k worlds for each signal, nx1 vector
+    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
+    dr: step size for r
+Outputs:
+    Ks: 2D Matrix of stage 1's objective function values for each r in the simplex.
+"""
+function calculate_stage_1_heatmap(ps, βs; dr = 0.1)
+    @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
+    game, _ = build_stage_2(ps, βs)
+    rs = 0:dr:1
+    Ks = NaN*ones(Float64, Int(1/dr + 1), Int(1/dr + 1))
+    for (i, r1) in enumerate(rs)
+        for (j, r2) in enumerate(rs)
+            if r1 + r2 > 1
+                continue
+            end
+            r3 = 1 - r1 - r2    
+            r = [r1, r2, r3]            
+            x = compute_stage_2(r, ps, βs, game)
+            K = compute_K(r, x, ps, βs)
+            Ks[i, j] = K
+        end
+    end
+
+    return Ks
+end
+
+"""
+Display heatmap of Stage 1's objective function. Assumes number of worlds is 3.
+
+Input: 
+    Ks: 2D Matrix of stage 1's objective function values for each r in the simplex
+Output: 
+    fig: Figure with simplex heatmap
+"""
+function display_heatmap(ps, Ks)
+    rs = 0:1/(size(Ks)[1] - 1):1
+    fig = Figure(size = (600, 400))  
+    ax = Axis(fig[1, 1]; xlabel = "r₁", ylabel = "r₂", aspect = 1)    
+    hmap = heatmap!(ax, rs, rs, Ks)
+    Colorbar(fig[1, 2], hmap; label = "K", width = 15, ticksize = 15, tickalign = 1)
+    fig
 end
 
 """
@@ -73,15 +137,16 @@ end
 
 """
 Attacker cost function
-ws: vector containing P2's (attacker) preference parameters for each world.
+β: vector containing P2's (attacker) preference parameters for each world.
 """
-function J_2(u, v, w)
-    δ = v - u
-    -sum([activate(δ[j]) * w[j] * δ[j]^2 for j in eachindex(w)])
+function J_2(u, v, β)
+   δ = [β[ii] * v[ii] - u[ii] for ii in eachindex(β)]
+   -sum([activate(δ[j]) for j in eachindex(β)])
+#    -sum([β[ii]^(v[ii]-u[ii]) for ii in eachindex(β)])
 end 
 
 "Approximate Heaviside step function"
-function activate(δ; k=100000)
+function activate(δ; k=1.0)
     return 1/(1 + exp(-2 * δ * k))
 end
 
@@ -89,25 +154,25 @@ end
 Build parametric game for Stage 2.
 
 Inputs: 
-    pws: prior distribution of k worlds for each signal, nx1 vector
-    ws: vector containing P1's cost parameters for each world. vector of nx1 vectors
+    ps: prior distribution of k worlds for each signal, nx1 vector
+    βs: vector containing P1's cost parameters for each world. vector of nx1 vectors
 Outputs: 
     parametric_game: ParametricGame object
     fs: vector of symbolic expressions for each player's objective function
 
 """
-function build_stage_2(pws, ws)
+function build_stage_2(ps, βs)
 
-    n = length(pws) # assume n_signals = n_worlds + 1
+    n = length(ps) # assume n_signals = n_worlds + 1
     n_players = 1 + n^2
 
     # Define Bayesian game player costs in Stage 2
-    p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * pws[w_idx] / (1 - θ' * pws)
+    p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * ps[w_idx] / (1 - θ' * ps)
     fs = [
         (x, θ) ->  sum([J_1(x[Block(1)], x[Block(w_idx + n + 1)]) * p_w_k_0(w_idx, θ) for w_idx in 1:n]), # u|s¹=0 IPI
-        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], ws[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
         [(x, θ) -> J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)]) for w_idx in 1:n]..., # u|s¹={1,2,3} PI
-        [(x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], ws[w_idx]) for w_idx in 1:n]..., # v|s¹={1,2,3} PI
+        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], βs[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
+        [(x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], βs[w_idx]) for w_idx in 1:n]..., # v|s¹={1,2,3} PI
     ]
 
     # equality constraints   
@@ -138,16 +203,17 @@ end
 """
 Compute objective at Stage 1
 """
-function compute_J(r, x, pws, ws)
-    n = length(pws)
-    1/(1 - r' * pws) * sum([(1 - r[j]) * pws[j] * J_1(x[Block(1)], x[Block(j + n + 1)]) for j in 1:n])
+function compute_K(r, x, ps, βs)
+    n = length(ps)
+    sum([(1 - r[j]) * ps[j] * J_1(x[Block(1)], x[Block(j + n + 1)]) for j in 1:n]) + 
+    sum([r[j] * ps[j] * J_1(x[Block(j + 1)], x[Block(j + 2 * n + 1)]) for j in 1:n])
 end
 
 """
 Compute derivative of Stage 1's objective function w.r.t. x
 """
-function compute_dJdx(r, x, pws, ws)
-    gradient(x -> compute_J(r, x, pws, ws), x)[1] 
+function compute_dKdx(r, x, ps, βs)
+    gradient(x -> compute_K(r, x, ps, βs), x)[1] 
 end
 
 """
@@ -155,20 +221,20 @@ Compute full derivative of Stage 1's objective function w.r.t. r
 
 Inputs: 
     x: decision variables of Stage 2
-    pws: prior distribution of k worlds, nx1 vector
+    ps: prior distribution of k worlds, nx1 vector
 
 Outputs: 
     djdq: Jacobian of Stage 1's objective function w.r.t. r
 """
-function compute_dJdr(r, x, pws, ws, game)
-    dJdx = compute_dJdx(r, x, pws, ws)
-    dJdr = gradient(r -> compute_J(r, x, pws, ws), r)[1]
-    dxdr = compute_dxdr(r, x, pws, ws, game)
-    n = length(pws)
+function compute_dKdr(r, x, ps, βs, game)
+    dKdx = compute_dKdx(r, x, ps, βs)
+    dKdr = gradient(r -> compute_K(r, x, ps, βs), r)[1]
+    dxdr = compute_dxdr(r, x, ps, βs, game)
+    n = length(ps)
     for idx in 1:(1 + n^2)
-        dJdr += (dJdx[Block(idx)]' * dxdr[Block(idx)])'
+        dKdr += (dKdx[Block(idx)]' * dxdr[Block(idx)])'
     end
-    dJdr
+    dKdr
 end
 
 """
@@ -176,14 +242,14 @@ Solve stage 2 and return full derivative of objective function w.r.t. r
 
 Inputs: 
     r: scout allocation
-    pws: prior distribution of k worlds, nx1 vector
-    ws: vector containing P2's cost parameters for each world. vector of nx1 vectors
+    ps: prior distribution of k worlds, nx1 vector
+    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
 
 Outputs:
     dxdr: Blocked Jacobian of Stage 2's decision variables w.r.t. Stage 1's decision variable
 """
-function compute_dxdr(r, x, pws, ws, game; verbose=false)
-    n = length(pws)
+function compute_dxdr(r, x, ps, βs, game; verbose=false)
+    n = length(ps)
     n_players = 1 + n^2
     var_dim = n # TODO: Change this to be more general
 
@@ -204,13 +270,13 @@ Return Stage 2 decision variables given scout allocation r
 
 Input: 
     r: scout allocation
-    pws: prior distribution of k worlds, nx1 vector
-    ws: vector containing P2's cost parameters for each world. Vector of nx1 vectors
+    ps: prior distribution of k worlds, nx1 vector
+    βs: vector containing P2's cost parameters for each world. Vector of nx1 vectors
 Output: 
     x: decision variables of Stage 2 given r. BlockedArray with a block per player
 """
-function compute_stage_2(r, pws, ws, game; initial_guess = nothing, verbose=false)
-    n = length(pws) # assume n_signals = n_worlds + 1
+function compute_stage_2(r, ps, βs, game; initial_guess = nothing, verbose=false)
+    n = length(ps) # assume n_signals = n_worlds + 1
     n_players = 1 + n^2
     var_dim = n # TODO: Change this to be more general
 
