@@ -31,12 +31,16 @@ Inputs:
 Outputs:
     r: optimal scout allocation
 """
-function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=.00001, α=1)
+function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=.00001, α=1, return_states = false)
     @assert sum(r_init) ≈ 1.0 "Initial guess r must be a probability distribution"
     cur_iter = 0
     n = length(ps)
     n_players = 1 + n^2
     var_dim = n # TODO: Change this to be more general
+    if return_states
+        x_list = []
+        r_list = []
+    end
     game, _ = build_stage_2(ps, βs) 
     r = r_init
     println("0: r = $r")
@@ -50,11 +54,21 @@ function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
             r, ps, βs, game;
             initial_guess=vcat(x, zeros(total_dim(game) - n_players * var_dim))
         )
+        if return_states
+            push!(x_list,x)
+            push!(r_list,r)
+        end
         # compute stage 1 cost function for current r and x 
         K = compute_K(r, x, ps, βs)
         # println("r_temp = $(round.(r_temp, digits=3)), dKdr = $(round.(dKdr, digits=3)) r = $(round.(r, digits=3)) K = $(round(K, digits=3))")
         println("r = $(round.(r, digits=3))")
         cur_iter += 1
+    end
+    if return_states
+        r_matrix = reduce(hcat, r_list)
+        x_matrix = reduce(hcat, x_list)
+        out = Dict("r"=>r, "x"=>x, "r_matrix"=>r_matrix, "x_matrix"=>x_matrix)
+        return out
     end
     return r
 end
