@@ -64,7 +64,7 @@ Temp. script to calculate and plot heatmap of Stage 1 cost function
 """
 function run_heatmap()
     ps = [1/3, 1/3, 1/3]
-    βs = [[1, 0.5, 0.5], [0.5, 1, 0.5], [0.5, 0.5, 1]]
+    βs = [[2, 1, 1], [1, 2, 1], [1, 1, 2]]
     Ks = calculate_stage_1_heatmap(ps, βs)
     fig = display_heatmap(ps, Ks)
     fig
@@ -144,9 +144,9 @@ Attacker cost function
 β: vector containing P2's (attacker) preference parameters for each world.
 """
 function J_2(u, v, β)
-   δ = [β[ii] * v[ii] - u[ii] for ii in eachindex(β)]
-   -sum([activate(δ[j]) for j in eachindex(β)])
-#    -sum([β[ii]^(v[ii]-u[ii]) for ii in eachindex(β)])
+#    δ = [β[ii] * v[ii] - u[ii] for ii in eachindex(β)]
+#    -sum([activate(δ[j]) for j in eachindex(β)])
+   -sum([β[ii]^(v[ii]-u[ii]) for ii in eachindex(β)])
 end 
 
 "Approximate Heaviside step function"
