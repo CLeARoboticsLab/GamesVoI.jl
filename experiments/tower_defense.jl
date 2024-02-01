@@ -113,6 +113,13 @@ function calculate_stage_1_costs(ps, βs; dr=0.05, normalize=true)
         end
     end
 
+    if !normalize
+        return Ks
+    end
+
+    max_value = maximum(filter(!isnan, Ks))
+    Ks = [isnan(K) ? NaN : K / max_value for K in Ks]
+
     return Ks
 end
 
