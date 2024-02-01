@@ -2,7 +2,7 @@ using GamesVoI
 using BlockArrays
 using LinearAlgebra: norm_sqr, norm
 using Zygote  
-using GLMakie: Figure, Axis, Colorbar, heatmap!, text!
+using GLMakie: Figure, Axis, Colorbar, heatmap!, text!, surface!, Axis3
 
 """ Nomenclature
     N                         : Number of worlds (=3)
@@ -76,11 +76,11 @@ end
 """
 Temp. script to calculate and plot heatmap of Stage 1 cost function 
 """
-function run_heatmap()
+function run_visualization(; type = "heatmap")
     ps = [1/3, 1/3, 1/3]
     βs = [[2, 1, 1], [1, 2, 1], [1, 1, 2]]
-    Ks = calculate_stage_1_heatmap(ps, βs)
-    fig = display_heatmap(ps, Ks)
+    Ks = calculate_stage_1_costs(ps, βs)
+    fig = type == "heatmap" ? display_heatmap(ps, Ks) : display_surface(ps, Ks)
     fig
 end
 
@@ -93,9 +93,9 @@ Inputs:
     βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
     dr: step size for r
 Outputs:
-    Ks: 2D Matrix of stage 1's objective function values for each r in the simplex.
+    Ks: 2D Matrix of stage 1's objective function values for each r in the simplex. Normalized, by default 
 """
-function calculate_stage_1_heatmap(ps, βs; dr = 0.05)
+function calculate_stage_1_costs(ps, βs; dr=0.05, normalize=true)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
     game, _ = build_stage_2(ps, βs)
     rs = 0:dr:1
@@ -130,12 +130,47 @@ function display_heatmap(ps, Ks)
     ax = Axis(fig[1, 1]; xlabel="r₁", ylabel="r₂", 
     title="Stage 1 cost as a function of r \n priors = $(round.(ps, digits=2))", aspect=1)
     hmap = heatmap!(ax, rs, rs, Ks)
-    Colorbar(fig[1, 2], hmap; label = "K", width = 15, ticksize = 15, tickalign = 1)
+    Colorbar(fig[1, 2], hmap; label = "K̃", width = 15, ticksize = 15, tickalign = 1)
     text!(ax, "$(round(ps[1], digits=2))", position = (0.9, 0.15), font = "Bold")
     text!(ax, "$(round(ps[2], digits=2))", position = (0.1, 0.95), font = "Bold")
     text!(ax, "$(round(ps[3], digits=2))", position = (0.1, 0.1), font = "Bold")
     fig
 end
+
+"""
+Display surface of Stage 1's objective function. Assumes number of worlds is 3.
+
+Input: 
+    Ks: 2D Matrix of stage 1's objective function values for each r in the simplex
+Output: 
+    fig: Figure with simplex heatmap
+"""
+function display_surface(ps, Ks)
+    rs = 0:1/(size(Ks)[1] - 1):1
+    fig = Figure(size = (600, 400))  
+    ax = Axis3(
+        fig[1, 1],
+        aspect = (1, 1, 1),
+        perspectiveness = 0.5,
+        elevation = pi / 20,
+        azimuth = -π * (1 / 2 + 1 / 4),
+        zgridcolor = :grey,
+        ygridcolor = :grey,
+        xgridcolor = :grey;
+        xlabel = "r₁",
+        ylabel = "r₂",
+        zlabel = "K",
+        title = "Stage 1 cost as a function of r \n priors = $(round.(ps, digits=2))",
+    )
+    Ks_min = minimum(filter(!isnan, Ks))
+    hmap = surface!(ax, rs, rs, Ks)
+    Colorbar(fig[1, 2], hmap; label = "K", width = 15, ticksize = 15, tickalign = 1)
+    text!(ax, "$(round(ps[1], digits=2))", position = (0.9, 0.4, Ks_min), font = "Bold")
+    text!(ax, "$(round(ps[2], digits=2))", position = (0.1, 0.95, Ks_min), font = "Bold")
+    text!(ax, "$(round(ps[3], digits=2))", position = (0.2, 0.1, Ks_min), font = "Bold")
+    fig
+end
+
 
 """
 Project onto simplex using Fig. 1 Duchi 2008
