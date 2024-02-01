@@ -191,9 +191,9 @@ function project_onto_simplex(v; z=1.0)
 end 
 
 "Defender cost function"
-function J_1(u, v) 
-    norm_sqr(u - v)
-end
+function J_1(u, v, β)
+    -J_2(u, v, β) 
+end 
 
 """
 Attacker cost function
@@ -229,8 +229,8 @@ function build_stage_2(ps, βs)
     # Define Bayesian game player costs in Stage 2
     p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * ps[w_idx] / (1 - θ' * ps)
     fs = [
-        (x, θ) ->  sum([J_1(x[Block(1)], x[Block(w_idx + n + 1)]) * p_w_k_0(w_idx, θ) for w_idx in 1:n]), # u|s¹=0 IPI
-        [(x, θ) -> J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)]) for w_idx in 1:n]..., # u|s¹={1,2,3} PI
+        (x, θ) ->  sum([J_1(x[Block(1)], x[Block(w_idx + n + 1)], βs[w_idx]) * p_w_k_0(w_idx, θ) for w_idx in 1:n]), # u|s¹=0 IPI
+        [(x, θ) -> J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], βs[w_idx]) for w_idx in 1:n]..., # u|s¹={1,2,3} PI
         [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], βs[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
         [(x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], βs[w_idx]) for w_idx in 1:n]..., # v|s¹={1,2,3} PI
     ]
@@ -265,8 +265,8 @@ Compute objective at Stage 1
 """
 function compute_K(r, x, ps, βs)
     n = length(ps)
-    sum([(1 - r[j]) * ps[j] * J_1(x[Block(1)], x[Block(j + n + 1)]) for j in 1:n]) + 
-    sum([r[j] * ps[j] * J_1(x[Block(j + 1)], x[Block(j + 2 * n + 1)]) for j in 1:n])
+    sum([(1 - r[j]) * ps[j] * J_1(x[Block(1)], x[Block(j + n + 1)], βs[j]) for j in 1:n]) + 
+    sum([r[j] * ps[j] * J_1(x[Block(j + 1)], x[Block(j + 2 * n + 1)], βs[j]) for j in 1:n])
 end
 
 """
