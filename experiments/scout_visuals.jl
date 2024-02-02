@@ -48,27 +48,27 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     K = 100
 
     # Axis parameters
-    # borders
-    ax_aspect = 1 
-    ax_limits = (0, 1, 0, 1)
-    # title
-    ax_titlegap = 1
-    ax_titlesize = 30
-    # x-axis
-    ax_xautolimitmargin = (0, 0)
-    ax_xgridwidth = 2
-    ax_xticklabelsize = 0
-    ax_xticks = -10:10
-    ax_xticksize = 18
-    # y-axis
-    ax_yautolimitmargin = (0, 0)
-    ax_ygridwidth = 2
-    ax_yticklabelpad = 14
-    ax_yticklabelsize = 0
-    ax_yticks = -10:10
-    ax_yticksize = 18
+        # borders
+        ax_aspect = 1 
+        ax_limits = (0, 1, 0, 1)
+        # title
+        ax_titlegap = 1
+        ax_titlesize = 30
+        # x-axis
+        ax_xautolimitmargin = (0, 0)
+        ax_xgridwidth = 2
+        ax_xticklabelsize = 0
+        ax_xticks = -10:10
+        ax_xticksize = 18
+        # y-axis
+        ax_yautolimitmargin = (0, 0)
+        ax_ygridwidth = 2
+        ax_yticklabelpad = 14
+        ax_yticklabelsize = 0
+        ax_yticks = -10:10
+        ax_yticksize = 18
 
-    opacity = 0.5
+        opacity = 0.5
 
     # Initialize plot
     fig = Figure()
