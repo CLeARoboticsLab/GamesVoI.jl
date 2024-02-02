@@ -121,8 +121,8 @@ function build_stage_2(pws, ws)
     p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * pws[w_idx] / (1 - θ' * pws)
     fs = [
         (x, θ) ->  sum([J_1(x[Block(1)], x[Block(w_idx + n + 1)]) * p_w_k_0(w_idx, θ) for w_idx in 1:n]), # u|s¹=0 IPI
-        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], ws[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
         [(x, θ) -> J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)]) for w_idx in 1:n]..., # u|s¹={1,2,3} PI
+        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], ws[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
         [(x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], ws[w_idx]) for w_idx in 1:n]... # v|s¹={1,2,3} PI
     ]
 
@@ -156,7 +156,7 @@ Compute objective at Stage 1
 """
 function compute_J(r, x, pws, ws)
     n = length(pws)
-    -sum([(1 - r[w_idx]) * pws[w_idx] * J_1(x[Block(1)], x[Block(w_idx + n + 1)]) for w_idx in 1:n]) -sum([r[w_idx] * pws[w_idx] * J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], ws[w_idx]) for w_idx in 1:n])
+    sum([(1 - r[w_idx]) * pws[w_idx] * J_1(x[Block(1)], x[Block(w_idx + n + 1)]) for w_idx in 1:n]) + sum([r[w_idx] * pws[w_idx] * J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)]) for w_idx in 1:n])
 end
 
 """
