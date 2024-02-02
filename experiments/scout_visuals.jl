@@ -8,28 +8,25 @@ include("tower_defense.jl")
 
 Makie.inline!(false)
 
-# Game Parameters
-attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
-
 # Visual parameters
     # Axis parameters
         # borders
         ax_aspect = 1 
-        ax_limits = (0, 1, 0, 1)
+        ax_limits = (0, 2, 0, 2)
         # title
-        ax_titlegap = 48
-        ax_titlesize = 60
+        ax_titlegap = 1
+        ax_titlesize = 30
         # x-axis
         ax_xautolimitmargin = (0, 0)
         ax_xgridwidth = 2
-        ax_xticklabelsize = 36
+        ax_xticklabelsize = 0
         ax_xticks = -10:10
         ax_xticksize = 18
         # y-axis
         ax_yautolimitmargin = (0, 0)
         ax_ygridwidth = 2
         ax_yticklabelpad = 14
-        ax_yticklabelsize = 36
+        ax_yticklabelsize = 0
         ax_yticks = -10:10
         ax_yticksize = 18
 
@@ -40,6 +37,8 @@ attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
 
 function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]])
     
+    # Game Parameters
+    attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
     num_worlds = 3
     prior_range_step = 0.01
     prior_range_step_precision = 1
@@ -47,8 +46,29 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     save_file_name = "precomputed_r.txt"
     save_precision = 4
     K = 100
-    opacity = 0.5
 
+    # Axis parameters
+    # borders
+    ax_aspect = 1 
+    ax_limits = (0, 1, 0, 1)
+    # title
+    ax_titlegap = 1
+    ax_titlesize = 30
+    # x-axis
+    ax_xautolimitmargin = (0, 0)
+    ax_xgridwidth = 2
+    ax_xticklabelsize = 0
+    ax_xticks = -10:10
+    ax_xticksize = 18
+    # y-axis
+    ax_yautolimitmargin = (0, 0)
+    ax_ygridwidth = 2
+    ax_yticklabelpad = 14
+    ax_yticklabelsize = 0
+    ax_yticks = -10:10
+    ax_yticksize = 18
+
+    opacity = 0.5
 
     # Initialize plot
     fig = Figure()
@@ -69,22 +89,7 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
         yticklabelpad = ax_yticklabelpad,
         yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
     )
-    ax_east = Axis(fig[2,1],
-        # borders
-        aspect = ax_aspect, limits = ax_limits,
-        # title
-        title = "East",
-        titlegap = ax_titlegap, titlesize = ax_titlesize,
-        # x-axis
-        xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
-        xticklabelsize = ax_xticklabelsize,
-        xticks = ax_xticks, xticksize = ax_xticksize,
-        # y-axis
-        yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
-        yticklabelpad = ax_yticklabelpad,
-        yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
-    )
-    ax_west = Axis(fig[2,3],
+    ax_west = Axis(fig[2,1],
         # borders
         aspect = ax_aspect, limits = ax_limits,
         # title
@@ -99,19 +104,41 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
         yticklabelpad = ax_yticklabelpad,
         yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
     )
+    ax_east = Axis(fig[2,3],
+        # borders
+        aspect = ax_aspect, limits = ax_limits,
+        # title
+        title = "East",
+        titlegap = ax_titlegap, titlesize = ax_titlesize,
+        # x-axis
+        xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
+        xticklabelsize = ax_xticklabelsize,
+        xticks = ax_xticks, xticksize = ax_xticksize,
+        # y-axis
+        yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
+        yticklabelpad = ax_yticklabelpad,
+        yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
+    )
 
     ax_simplex = Axis3(fig[2,2], aspect = (1,1,1), 
         limits = ((0.0, 1.0, 0.0, 1.0, 0.0, 1.1)),
         xreversed = true, 
-        yreversed = true
+        yreversed = true, 
+        xlabel = "",
+        ylabel = "",
+        zlabel = "",
     )
+
+    hidedecorations!(ax_north)
+    hidedecorations!(ax_east)
+    hidedecorations!(ax_west)
 
     # Create sliders
     sg = SliderGrid(
         fig[3, 2],
-        (label = "prior_north", range = prior_range, format = "{:.2f}", startvalue = 1.0),
-        (label = "prior_east", range = prior_range, format = "{:.2f}", startvalue = 1.0),
-        (label = "prior_west", range = prior_range, format = "{:.2f}", startvalue = 1.0)
+        (label = "prior_north", range = prior_range, format = "{:.2f}", startvalue = 1.0), # z
+        (label = "prior_east", range = prior_range, format = "{:.2f}", startvalue = 1.0), # y
+        (label = "prior_west", range = prior_range, format = "{:.2f}", startvalue = 1.0) # x
     )
     observable_prior_sliders = [s.value for s in sg.sliders]
  
@@ -124,16 +151,18 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     end
     @lift println("priors: ", $normalized_observable_p)
 
+    # p₁ : west, p₂ : east, p₃ : north
     p1, p2, p3 = [lift((x,i)->x[i], normalized_observable_p, idx) for idx in 1:num_worlds]
-    scatter!(ax_simplex, p1, p2, p3 ; markersize = 15, color = :red)
+    scatter!(ax_simplex, p3, p2, p1 ; markersize = 15, color = :red)
 
     # Solve for scout_allocation, r 
     observable_r = on(normalized_observable_p) do x
         solve_r(x, attacker_preference)
+        #rand(3)
     end
     scout_north, scout_east, scout_west = [lift((x,i)->x[i], observable_r.observable, idx) for idx in 1:num_worlds]
 
-    function get_random_point_within_ball(; radius = 0.3, center = [0.5, 0.5], num_points = 1)
+    function get_random_point_within_ball(; radius = 0.3, center = [ax_limits[2]/2, ax_limits[2]/2], num_points = 1)
         # Check center is Tuple
         @assert length(center) == 2 "Center must be a 2-element vector [x, y]"
         x_coord, y_coord = center
@@ -153,16 +182,16 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     
     # Check if scout_allocation results are normalized
     @lift println("Scout allocation: ", [$scout_north, $scout_east, $scout_west])
-    @assert round(sum([scout_north.val, scout_east.val, scout_west.val])) ≈ 1 "Scout allocation is not normalized"
+    #@assert round(sum([scout_north.val, scout_east.val, scout_west.val])) ≈ 1 "Scout allocation is not normalized"
 
     # Display scout allocation as a text on the Figure
-    text_directions = [lift((x) -> "$(round(x, digits = 2)* K)", scout) for scout in [scout_north, scout_east, scout_west]]
+    text_directions = [lift((x) -> "$(round(Int, x*K))%", scout) for scout in [scout_north, scout_east, scout_west]]
     Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight = false)
-    Label(fig[2,1], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
-    Label(fig[2,3], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
+    Label(fig[2,3], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
+    Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
 
     # Plot scout allocation 
-    points = @lift [get_random_point_within_ball(; num_points = round(scout, digits = 2)* K) for scout in [$scout_north, $scout_east, $scout_west]]
+    points = @lift [get_random_point_within_ball(; radius = scout*0.5, num_points = 100) for scout in [$scout_north, $scout_east, $scout_west]]
     north_points, east_points, west_points = [lift((x, i) -> x[i], points, idx) for idx in 1:3]
     x_north, y_north = [lift((x, i) -> x[i], north_points, idx) for idx in 1:2]
     x_east, y_east = [lift((x, i) -> x[i], east_points, idx) for idx in 1:2]
@@ -170,10 +199,11 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     scatter!(ax_north, x_north, y_north, markersize = 15, color = (:orange, opacity))
     scatter!(ax_east, x_east, y_east, markersize = 15, color = (:pink, opacity+0.2))
     scatter!(ax_west, x_west, y_west, markersize = 15, color = (:green, opacity))
-   
 
+    # Plot Enemy
+    scatter!(ax_north, rand(10), rand(10), color = :red)
 
-    display(fig)
+    display(fig, fullscreen = true)
 end
 
 function compute_all_r_save_to_file()
