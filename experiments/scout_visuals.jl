@@ -46,6 +46,9 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     prior_range = 0.01:prior_range_step:1
     save_file_name = "precomputed_r.txt"
     save_precision = 4
+    K = 100
+    opacity = 0.5
+
 
     # Initialize plot
     fig = Figure()
@@ -130,11 +133,46 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     end
     scout_north, scout_east, scout_west = [lift((x,i)->x[i], observable_r.observable, idx) for idx in 1:num_worlds]
 
-    # TODO: Be creative with scout_allocation
-    scatter!(ax_north, scout_north, scout_north, markersize = 15, color = :red)
-    scatter!(ax_east, scout_east, scout_east, markersize = 15, color = :purple)
-    scatter!(ax_west, scout_west, scout_west, markersize = 15, color = :green)
+    function get_random_point_within_ball(; radius = 0.3, center = [0.5, 0.5], num_points = 1)
+        # Check center is Tuple
+        @assert length(center) == 2 "Center must be a 2-element vector [x, y]"
+        x_coord, y_coord = center
+
+        # Generate random angle in radians
+        angle = [2π * rand() for _ in 1:num_points]
+
+        # Generate random distance within the specificed radius
+        r = [radius * sqrt(rand()) for _ in 1:num_points]
+
+        # Calculate new x and y coordinates
+        x = x_coord .+ r .* cos.(angle)
+        y = y_coord .+ r .* sin.(angle)
+
+        [x, y]
+    end
+    
+    # Check if scout_allocation results are normalized
+    @lift println("Scout allocation: ", [$scout_north, $scout_east, $scout_west])
+    @assert round(sum([scout_north.val, scout_east.val, scout_west.val])) ≈ 1 "Scout allocation is not normalized"
+
+    # Display scout allocation as a text on the Figure
+    text_directions = [lift((x) -> "$(round(x, digits = 2)* K)", scout) for scout in [scout_north, scout_east, scout_west]]
+    Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight = false)
+    Label(fig[2,1], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
+    Label(fig[2,3], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
+
+    # Plot scout allocation 
+    points = @lift [get_random_point_within_ball(; num_points = round(scout, digits = 2)* K) for scout in [$scout_north, $scout_east, $scout_west]]
+    north_points, east_points, west_points = [lift((x, i) -> x[i], points, idx) for idx in 1:3]
+    x_north, y_north = [lift((x, i) -> x[i], north_points, idx) for idx in 1:2]
+    x_east, y_east = [lift((x, i) -> x[i], east_points, idx) for idx in 1:2]
+    x_west, y_west = [lift((x, i) -> x[i], west_points, idx) for idx in 1:2]
+    scatter!(ax_north, x_north, y_north, markersize = 15, color = (:orange, opacity))
+    scatter!(ax_east, x_east, y_east, markersize = 15, color = (:pink, opacity+0.2))
+    scatter!(ax_west, x_west, y_west, markersize = 15, color = (:green, opacity))
    
+
+
     display(fig)
 end
 
