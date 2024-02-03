@@ -281,14 +281,7 @@ Attacker cost function
 β: vector containing P2's (attacker) preference parameters for each world.
 """
 function J_2(u, v, β)
-    #    δ = [β[ii] * v[ii] - u[ii] for ii in eachindex(β)]
-    #    -sum([activate(δ[j]) for j in eachindex(β)])
     -sum([β[ii]^(v[ii] - u[ii]) for ii in eachindex(β)])
-end
-
-"Approximate Heaviside step function"
-function activate(δ; k = 1.0)
-    return 1 / (1 + exp(-2 * δ * k))
 end
 
 """
