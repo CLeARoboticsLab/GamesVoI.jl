@@ -105,10 +105,17 @@ function run_misid_vis()
     world_2_misid_costs = calculate_misid_costs(ps, βs, 2; dr)
     world_3_misid_costs = calculate_misid_costs(ps, βs, 3; dr)
 
+    # Normalize using maximum value across all worlds 
+    max_value =
+        maximum(filter(!isnan, vcat(world_1_misid_costs, world_2_misid_costs, world_3_misid_costs)))
+    world_1_misid_costs = [isnan(c) ? NaN : c / max_value for c in world_1_misid_costs]
+    world_2_misid_costs = [isnan(c) ? NaN : c / max_value for c in world_2_misid_costs]
+    world_3_misid_costs = [isnan(c) ? NaN : c / max_value for c in world_3_misid_costs]
+
     display_misid_costs([world_1_misid_costs, world_2_misid_costs, world_3_misid_costs], ps)
 end
 
-function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, normalize = true)
+function calculate_misid_costs(ps, βs, world_idx; dr = 0.05)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
     game, _ = build_stage_2(ps, βs)
     rs = 0:dr:1
@@ -128,13 +135,6 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, normalize = true)
             misid_costs[i, j] = misid_cost
         end
     end
-
-    if !normalize
-        return misid_costs
-    end
-
-    max_value = maximum(filter(!isnan, misid_costs))
-    misid_costs = [isnan(c) ? NaN : c / max_value for c in misid_costs]
 
     return misid_costs
 end
@@ -156,7 +156,7 @@ function display_misid_costs(costs, ps)
             fig[1, world_idx],
             aspect = (1, 1, 1),
             perspectiveness = 0.5,
-            elevation = pi / 4,
+            elevation = pi / 5,
             azimuth = -π * (1 / 2 + 1 / 4),
             zgridcolor = :grey,
             ygridcolor = :grey,
@@ -165,11 +165,18 @@ function display_misid_costs(costs, ps)
             ylabel = "r₂",
             zlabel = "Misid. cost",
             title = "World $world_idx",
+            limits = (nothing, nothing, (0.01, 1)),
         ) for world_idx in 1:num_worlds
     ]
     for world_idx in 1:num_worlds
-        cost_min = minimum(filter(!isnan, costs[world_idx]))
-        hmap = surface!(axs[world_idx], rs, rs, costs[world_idx], colormap = :viridis)
+        hmap = surface!(
+            axs[world_idx],
+            rs,
+            rs,
+            costs[world_idx],
+            colormap = :viridis,
+            colorrange = (0, 1),
+        )
         # text!(axs[world_idx], "$(round(ps[1], digits=2))", position = (0.9, 0.4, cost_min), font = "Bold")
         # text!(axs[world_idx], "$(round(ps[2], digits=2))", position = (0.1, 0.95, cost_min), font = "Bold")
         # text!(axs[world_idx], "$(round(ps[3], digits=2))", position = (0.2, 0.1, cost_min), font = "Bold")
