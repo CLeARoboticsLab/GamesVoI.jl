@@ -227,32 +227,6 @@ function calculate_stage_1_costs(ps, βs; dr = 0.05, normalize = true)
 end
 
 """
-Display heatmap of Stage 1's objective function. Assumes number of worlds is 3.
-
-Input: 
-    Ks: 2D Matrix of stage 1's objective function values for each r in the simplex
-Output: 
-    fig: Figure with simplex heatmap
-"""
-function display_heatmap(ps, Ks)
-    rs = 0:(1 / (size(Ks)[1] - 1)):1
-    fig = Figure(size = (600, 400))
-    ax = Axis(
-        fig[1, 1];
-        xlabel = "r₁",
-        ylabel = "r₂",
-        title = "Stage 1 cost as a function of r \n priors = $(round.(ps, digits=2))",
-        aspect = 1,
-    )
-    hmap = heatmap!(ax, rs, rs, Ks)
-    Colorbar(fig[1, 2], hmap; label = "K̃", width = 15, ticksize = 15, tickalign = 1)
-    text!(ax, "$(round(ps[1], digits=2))", position = (0.9, 0.15), font = "Bold")
-    text!(ax, "$(round(ps[2], digits=2))", position = (0.1, 0.95), font = "Bold")
-    text!(ax, "$(round(ps[3], digits=2))", position = (0.1, 0.1), font = "Bold")
-    fig
-end
-
-"""
 Display surface of Stage 1's objective function. Assumes number of worlds is 3.
 
 Input: 
