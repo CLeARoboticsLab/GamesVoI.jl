@@ -257,13 +257,14 @@ function display_surface(ps, Ks)
         ylabel = "r₂",
         zlabel = "K",
         title = "Stage 1 cost as a function of r \n priors = $(round.(ps, digits=2))",
+        limits = (nothing, nothing, (0.01, 1)),
     )
     Ks_min = minimum(filter(!isnan, Ks))
-    hmap = surface!(ax, rs, rs, Ks)
+    hmap = surface!(ax, rs, rs, Ks, colorrange = (0, 1))
     Colorbar(fig[1, 2], hmap; label = "K", width = 15, ticksize = 15, tickalign = 1)
-    text!(ax, "$(round(ps[1], digits=2))", position = (0.9, 0.4, Ks_min), font = "Bold")
-    text!(ax, "$(round(ps[2], digits=2))", position = (0.1, 0.95, Ks_min), font = "Bold")
-    text!(ax, "$(round(ps[3], digits=2))", position = (0.2, 0.1, Ks_min), font = "Bold")
+    text!(ax, "$(round(ps[1], digits=2))", position = (0.9, 0.4, 0.01), font = "Bold")
+    text!(ax, "$(round(ps[2], digits=2))", position = (0.1, 0.95, 0.01), font = "Bold")
+    text!(ax, "$(round(ps[3], digits=2))", position = (0.2, 0.1, 0.01), font = "Bold")
     fig
 end
 
