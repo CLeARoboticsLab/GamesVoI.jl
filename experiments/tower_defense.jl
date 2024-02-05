@@ -86,11 +86,11 @@ end
 """
 Temp. script to calculate and plot heatmap of Stage 1 cost function 
 """
-function run_visualization(; type = "heatmap")
+function run_visualization()
     ps = [1 / 3, 1 / 3, 1 / 3]
     βs = [[2, 1, 1], [1, 2, 1], [1, 1, 2]]
     Ks = calculate_stage_1_costs(ps, βs)
-    fig = type == "heatmap" ? display_heatmap(ps, Ks) : display_surface(ps, Ks)
+    fig = display_surface(ps, Ks)
     fig
 end
 
