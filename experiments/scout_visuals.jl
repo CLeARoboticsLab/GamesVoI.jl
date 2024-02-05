@@ -136,9 +136,9 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     # Create sliders
     sg = SliderGrid(
         fig[3, 2],
-        (label = "prior_north", range = prior_range, format = "{:.2f}", startvalue = 1.0), # z
-        (label = "prior_east", range = prior_range, format = "{:.2f}", startvalue = 1.0), # y
-        (label = "prior_west", range = prior_range, format = "{:.2f}", startvalue = 1.0) # x
+        (label = "prior_north", range = prior_range, format = x-> "", startvalue = 1.0), # z
+        (label = "prior_east", range = prior_range, format = x-> "", startvalue = 1.0), # y
+        (label = "prior_west", range = prior_range, format = x-> "", startvalue = 1.0) # x
     )
     observable_prior_sliders = [s.value for s in sg.sliders]
  
@@ -192,7 +192,7 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
 
     # Plot scout allocation 
     points = @lift [get_random_point_within_ball(; radius = scout*0.5, num_points = 100) for scout in [$scout_north, $scout_east, $scout_west]]
-    north_points, east_points, west_points = [lift((x, i) -> x[i], points, idx) for idx in 1:3]
+    north_points, east_points, west_points = [lift((x, i) -> x[i], points, idx) for idx in 1:num_worlds]
     x_north, y_north = [lift((x, i) -> x[i], north_points, idx) for idx in 1:2]
     x_east, y_east = [lift((x, i) -> x[i], east_points, idx) for idx in 1:2]
     x_west, y_west = [lift((x, i) -> x[i], west_points, idx) for idx in 1:2]
