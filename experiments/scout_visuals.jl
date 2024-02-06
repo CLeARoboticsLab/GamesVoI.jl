@@ -35,17 +35,24 @@ Makie.inline!(false)
 2. Solve for all different combinations and store them in a "look-up dictionary" so that you dont have to solve the game all the time
 """
 
-function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]])
+function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]], use_file=false)
+
+    save_file = nothing
+    if use_file
+        save_file = JSON3.read(open("data.tmp", "r"), Dict{Vector{Float64}, Vector{Float64}})
+        println("read file")
+    end
     
     # Game Parameters
-    attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
-    num_worlds = 3
-    prior_range_step = 0.01
-    prior_range_step_precision = 1
-    prior_range = 0.01:prior_range_step:1
-    save_file_name = "precomputed_r.txt"
-    save_precision = 4
-    K = 100
+        attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
+        num_worlds = 3
+        prior_range_step = 0.01
+        prior_range_step_precision = 1
+        prior_range = 0.01:prior_range_step:1
+        save_file_name = "precomputed_r.txt"
+        save_precision = 4
+        K = 100
+        num_unit_scaling_factor = 20
 
     # Axis parameters
         # borders
@@ -157,8 +164,11 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
 
     # Solve for scout_allocation, r 
     observable_r = on(normalized_observable_p) do x
-        solve_r(x, attacker_preference)
-        #rand(3)
+        if use_file
+            save_file[x]
+        else
+            solve_r(x, attacker_preference)
+        end
     end
     scout_north, scout_east, scout_west = [lift((x,i)->x[i], observable_r.observable, idx) for idx in 1:num_worlds]
 
@@ -186,35 +196,53 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
 
     # Display scout allocation as a text on the Figure
     text_directions = [lift((x) -> "$(round(Int, x*K))%", scout) for scout in [scout_north, scout_east, scout_west]]
-    Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight = false)
-    Label(fig[2,3], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
-    Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
 
     # Plot scout allocation 
-    points = @lift [get_random_point_within_ball(; radius = scout*0.5, num_points = 100) for scout in [$scout_north, $scout_east, $scout_west]]
-    north_points, east_points, west_points = [lift((x, i) -> x[i], points, idx) for idx in 1:num_worlds]
-    x_north, y_north = [lift((x, i) -> x[i], north_points, idx) for idx in 1:2]
-    x_east, y_east = [lift((x, i) -> x[i], east_points, idx) for idx in 1:2]
-    x_west, y_west = [lift((x, i) -> x[i], west_points, idx) for idx in 1:2]
-    scatter!(ax_north, x_north, y_north, markersize = 15, color = (:orange, opacity))
-    scatter!(ax_east, x_east, y_east, markersize = 15, color = (:pink, opacity+0.2))
-    scatter!(ax_west, x_west, y_west, markersize = 15, color = (:green, opacity))
+    points = @lift [get_random_point_within_ball(; radius = scout*0.5, num_points = 
+        round(Int, (num_unit_scaling_factor * scout) * (num_unit_scaling_factor * scout))) 
+        for scout in [$scout_north, $scout_east, $scout_west]]
 
-    # Plot Enemy
-    scatter!(ax_north, rand(10), rand(10), color = :red)
+    enemies_x = rand(num_worlds * num_unit_scaling_factor)
+    enemies_y = rand(num_worlds * num_unit_scaling_factor)
+    on(points) do pt
+        #TODO: change enemy constants to be variable
+        north, east, west = [pt[idx] for idx in 1:num_worlds]
 
+        Box(fig[1,2], color = :white, strokevisible = false)
+        scatter!(ax_north, north[1], north[2], markersize = 15, color = (:orange, opacity))
+        scatter!(ax_north, enemies_x[1:20], enemies_y[1:20], color = :red)
+        Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight = false)
+
+        Box(fig[2,3], color = :white, strokevisible = false)
+        scatter!(ax_east, east[1], east[2], markersize = 15, color = (:pink, opacity + 0.2))
+        scatter!(ax_east, enemies_x[21:40], enemies_y[21:40], color = :red)
+        Label(fig[2,3], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
+
+        Box(fig[2,1], color = :white, strokevisible = false)
+        scatter!(ax_west, west[1], west[2], markersize = 15, color = (:green, opacity))
+        scatter!(ax_west, enemies_x[41:60], enemies_y[41:60], color = :red)
+        Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
+    end
     display(fig, fullscreen = true)
 end
 
-function compute_all_r_save_to_file()
+function demo_stage2()
+
+end
+
+function compute_all_r_save_to_file(;_prior_range = 0.01:.1:1,
+     attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]],
+     save_file_name = "data.tmp")
+    prior_range = round.(_prior_range, digits=1)
     # save_file = open(save_file_name, "w+")
-    hashmap = Dict{Tuple{Float64, Float64, Float64}, Tuple{Float64, Float64, Float64}}()
+    hashmap = Dict{Vector{Float64}, Vector{Float64}}()
     for prior_north in prior_range
         for prior_east in prior_range
             for prior_west in prior_range
-                current_prior = (prior_north, prior_east, prior_west)
-                r = solve_r(current_prior, attacker_preference)
-                hashmap[current_prior] = round.(r, digits = save_precision)
+                # print("calculating: ", [prior_north, prior_east, prior_west])
+                current_prior = [prior_north, prior_east, prior_west]
+                r = solve_r(current_prior, attacker_preference, verbose = false)
+                hashmap[current_prior] = r
             end
         end
     end
