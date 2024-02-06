@@ -132,6 +132,7 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05)
             defender_signal_0 = x[Block(1)]
             attacker_signal_0_world_idx = x[Block(world_idx + num_worlds + 1)]
             misid_cost = J_1(defender_signal_0, attacker_signal_0_world_idx, βs[world_idx])
+            misid_cost = misid_cost * r[world_idx] 
             misid_costs[i, j] = misid_cost
         end
     end
