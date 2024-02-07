@@ -158,7 +158,7 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     # Solve for scout_allocation, r 
     observable_r = on(normalized_observable_p) do x
         solve_r(x, attacker_preference)
-        #rand(3)
+        trigger = true
     end
     scout_north, scout_east, scout_west = [lift((x,i)->x[i], observable_r.observable, idx) for idx in 1:num_worlds]
 
@@ -173,16 +173,13 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
         # Generate random distance within the specificed radius
         r = [radius * sqrt(rand()) for _ in 1:num_points]
 
-        # Calculate new x and y coordinates
-        x = x_coord .+ r .* cos.(angle)
-        y = y_coord .+ r .* sin.(angle)
+        # Calculate new x and y coordinates and create an array of Point2f objects
 
-        [x, y]
+        [Point2f(x_coord + r[i] * cos(angle[i]), y_coord + r[i] * sin(angle[i])) for i in 1:num_points]
     end
     
     # Check if scout_allocation results are normalized
     @lift println("Scout allocation: ", [$scout_north, $scout_east, $scout_west])
-    #@assert round(sum([scout_north.val, scout_east.val, scout_west.val])) ≈ 1 "Scout allocation is not normalized"
 
     # Display scout allocation as a text on the Figure
     text_directions = [lift((x) -> "$(round(Int, x*K))%", scout) for scout in [scout_north, scout_east, scout_west]]
@@ -191,15 +188,14 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
 
     # Plot scout allocation 
-    points = @lift [get_random_point_within_ball(; radius = scout*0.5, num_points = 100) for scout in [$scout_north, $scout_east, $scout_west]]
-    north_points, east_points, west_points = [lift((x, i) -> x[i], points, idx) for idx in 1:num_worlds]
-    x_north, y_north = [lift((x, i) -> x[i], north_points, idx) for idx in 1:2]
-    x_east, y_east = [lift((x, i) -> x[i], east_points, idx) for idx in 1:2]
-    x_west, y_west = [lift((x, i) -> x[i], west_points, idx) for idx in 1:2]
-    scatter!(ax_north, x_north, y_north, markersize = 15, color = (:orange, opacity))
-    scatter!(ax_east, x_east, y_east, markersize = 15, color = (:pink, opacity+0.2))
-    scatter!(ax_west, x_west, y_west, markersize = 15, color = (:green, opacity))
+    north_points = lift(x->get_random_point_within_ball(; radius = x*0.5, num_points = round(Int, 100*x)), scout_north)
+    east_points = lift(x->get_random_point_within_ball(; radius = x*0.5, num_points = round(Int, 100*x)), scout_east)
+    west_points = lift(x->get_random_point_within_ball(; radius = x*0.5, num_points = round(Int, 100*x)), scout_west)
+    scatter!(ax_north, north_points, markersize = 15, color = (:orange, opacity))
+    scatter!(ax_east, east_points, markersize = 15, color = (:pink, opacity+0.2))
+    scatter!(ax_west, west_points, markersize = 15, color = (:green, opacity))
 
+   
     # Plot Enemy
     scatter!(ax_north, rand(10), rand(10), color = :red)
 
