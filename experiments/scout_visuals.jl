@@ -193,7 +193,10 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
 
     # Display scout allocation as a text on the Figure
     text_directions = [lift((x) -> "$(round(Int, x*K))%", scout) for scout in [scout_north, scout_east, scout_west]]
-
+    Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight = false)
+    Label(fig[2,3], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
+    Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
+    
     # Plot scout allocation 
     north_points = lift(x->get_random_point_within_ball(; radius = x*0.5, num_points = round(Int, 100*x)), scout_north)
     east_points = lift(x->get_random_point_within_ball(; radius = x*0.5, num_points = round(Int, 100*x)), scout_east)
