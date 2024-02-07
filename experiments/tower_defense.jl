@@ -31,7 +31,8 @@ Inputs:
 Outputs:
     r: optimal scout allocation
 """
-function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=.00001, α=1, return_states = false)
+function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=.00001, α=1, return_states = false,
+    verbose=true)
     @assert sum(r_init) ≈ 1.0 "Initial guess r must be a probability distribution"
     cur_iter = 0
     n = length(ps)
@@ -43,7 +44,9 @@ function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
     end
     game, _ = build_stage_2(ps, βs) 
     r = r_init
-    println("0: r = $r")
+    if verbose
+        println("0: r = $r")
+    end
     x = compute_stage_2(r, ps, βs, game)
     dKdr = zeros(Float64, n)
     while cur_iter < iter_limit # TODO: Break if change from last iteration is small
@@ -61,7 +64,9 @@ function solve_r(ps, βs; r_init = [1/3, 1/3, 1/3], iter_limit=50, target_error=
         # compute stage 1 cost function for current r and x 
         K = compute_K(r, x, ps, βs)
         # println("r_temp = $(round.(r_temp, digits=3)), dKdr = $(round.(dKdr, digits=3)) r = $(round.(r, digits=3)) K = $(round(K, digits=3))")
-        println("r = $(round.(r, digits=3))")
+        if verbose
+            println("r = $(round.(r, digits=3))")
+        end
         cur_iter += 1
     end
     if return_states

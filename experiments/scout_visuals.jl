@@ -35,17 +35,24 @@ Makie.inline!(false)
 2. Solve for all different combinations and store them in a "look-up dictionary" so that you dont have to solve the game all the time
 """
 
-function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]])
+function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]], use_file=false)
+
+    save_file = nothing
+    if use_file
+        save_file = JSON3.read(open("data.tmp", "r"), Dict{Vector{Float64}, Vector{Float64}})
+        println("read file")
+    end
     
     # Game Parameters
-    attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
-    num_worlds = 3
-    prior_range_step = 0.01
-    prior_range_step_precision = 1
-    prior_range = 0.01:prior_range_step:1
-    save_file_name = "precomputed_r.txt"
-    save_precision = 4
-    K = 100
+        attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
+        num_worlds = 3
+        prior_range_step = 0.01
+        prior_range_step_precision = 1
+        prior_range = 0.01:prior_range_step:1
+        save_file_name = "precomputed_r.txt"
+        save_precision = 4
+        K = 100
+        num_unit_scaling_factor = 20
 
     # Axis parameters
         # borders
@@ -157,8 +164,11 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
 
     # Solve for scout_allocation, r 
     observable_r = on(normalized_observable_p) do x
-        solve_r(x, attacker_preference)
-        trigger = true
+        if use_file
+            save_file[x]
+        else
+            solve_r(x, attacker_preference)
+        end
     end
     scout_north, scout_east, scout_west = [lift((x,i)->x[i], observable_r.observable, idx) for idx in 1:num_worlds]
 
@@ -183,9 +193,6 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
 
     # Display scout allocation as a text on the Figure
     text_directions = [lift((x) -> "$(round(Int, x*K))%", scout) for scout in [scout_north, scout_east, scout_west]]
-    Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight = false)
-    Label(fig[2,3], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
-    Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
 
     # Plot scout allocation 
     north_points = lift(x->get_random_point_within_ball(; radius = x*0.5, num_points = round(Int, 100*x)), scout_north)
@@ -202,15 +209,23 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     display(fig, fullscreen = true)
 end
 
-function compute_all_r_save_to_file()
+function demo_stage2()
+
+end
+
+function compute_all_r_save_to_file(;_prior_range = 0.01:.1:1,
+     attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]],
+     save_file_name = "data.tmp")
+    prior_range = round.(_prior_range, digits=1)
     # save_file = open(save_file_name, "w+")
-    hashmap = Dict{Tuple{Float64, Float64, Float64}, Tuple{Float64, Float64, Float64}}()
+    hashmap = Dict{Vector{Float64}, Vector{Float64}}()
     for prior_north in prior_range
         for prior_east in prior_range
             for prior_west in prior_range
-                current_prior = (prior_north, prior_east, prior_west)
-                r = solve_r(current_prior, attacker_preference)
-                hashmap[current_prior] = round.(r, digits = save_precision)
+                # print("calculating: ", [prior_north, prior_east, prior_west])
+                current_prior = [prior_north, prior_east, prior_west]
+                r = solve_r(current_prior, attacker_preference, verbose = false)
+                hashmap[current_prior] = r
             end
         end
     end
