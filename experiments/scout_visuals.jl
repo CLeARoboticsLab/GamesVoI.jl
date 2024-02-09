@@ -216,7 +216,7 @@ function demo_stage2()
 
 end
 
-function compute_all_r_save_to_file(;_prior_range = 0.01:.1:1,
+function compute_all_r_save_to_file(;_prior_range = 0.01:.1:1.1,
      attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]],
      save_file_name = "data2.tmp")
     prior_range = round.(_prior_range, digits=1)
