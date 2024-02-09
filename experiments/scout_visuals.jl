@@ -39,7 +39,7 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
 
     save_file = nothing
     if use_file
-        save_file = JSON3.read(open("data.tmp", "r"), Dict{Vector{Float64}, Vector{Float64}})
+        save_file = JSON3.read(open("data2.tmp", "r"), Dict{String, Vector{Float64}})
         println("read file")
     end
     
@@ -165,7 +165,7 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     # Solve for scout_allocation, r 
     observable_r = on(normalized_observable_p) do x
         if use_file
-            save_file[x]
+            save_file[string(round.(x))]
         else
             solve_r(x, attacker_preference)
         end
@@ -218,7 +218,7 @@ end
 
 function compute_all_r_save_to_file(;_prior_range = 0.01:.1:1,
      attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]],
-     save_file_name = "data.tmp")
+     save_file_name = "data2.tmp")
     prior_range = round.(_prior_range, digits=1)
     # save_file = open(save_file_name, "w+")
     hashmap = Dict{Vector{Float64}, Vector{Float64}}()
@@ -227,11 +227,14 @@ function compute_all_r_save_to_file(;_prior_range = 0.01:.1:1,
             for prior_west in prior_range
                 # print("calculating: ", [prior_north, prior_east, prior_west])
                 current_prior = [prior_north, prior_east, prior_west]
-                r = solve_r(current_prior, attacker_preference, verbose = false)
-                hashmap[current_prior] = r
+                if norm(current_prior, 1) <= 1.11 && norm(current_prior) >= .89
+                    r = solve_r(current_prior, attacker_preference, verbose = false)
+                    hashmap[current_prior] = r
+                end
             end
         end
     end
+    hashmap[[0.0, 0.0, 0.0]] = [0.0, 0.0, 0.0]
     JSON3.write(save_file_name, hashmap)
     # write(save_file, hashmap)
     # close(save_file)
