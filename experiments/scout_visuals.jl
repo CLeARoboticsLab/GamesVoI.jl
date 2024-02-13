@@ -391,15 +391,15 @@ b_array = lift((r, p, game) -> compute_stage_2(r, p, attacker_preference, game),
 #TODO: plot using b_array
 on(world_menu) do world
     if world == "World 1"
-    else if world == "World 2"
+    elseif world == "World 2"
     else # world == "World 3"
     end
 end
 
 on(signal_menu) do signal
     if signal == 0
-    else if signal == 1
-    else if signal == 2
+    elseif signal == 1
+    elseif signal == 2
     else #signal == 3
     end
 end
