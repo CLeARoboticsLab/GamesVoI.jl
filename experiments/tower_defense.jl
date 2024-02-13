@@ -299,6 +299,7 @@ Output:
     x: decision variables of Stage 2 given r. BlockedArray with a block per player
 """
 function compute_stage_2(r, ps, βs, game; initial_guess = nothing, verbose=false)
+    Main.@infiltrate
     n = length(ps) # assume n_signals = n_worlds + 1
     n_players = 1 + n^2
     var_dim = n # TODO: Change this to be more general

@@ -367,8 +367,8 @@ Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight
 Label(fig[2,3], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
 Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
 
-signal_menu = Menu(fig[1:1], options = [0, 1, 2, 3], default = 0)
-world_menu = Menu(fig[1:3], options=["World 1", "World 2", "World 3"], default = "World 2")
+signal_menu = Menu(fig[1,1], options = [0, 1, 2, 3], default = 1)
+world_menu = Menu(fig[1,3], options=["World 1", "World 2", "World 3"], default = "World 2")
 
 # Plot scout allocation 
 # north_points = lift(x->get_random_point_within_ball(; radius = x*0.5, num_points = round(Int, 100*x)), scout_north)
@@ -382,13 +382,10 @@ world_menu = Menu(fig[1:3], options=["World 1", "World 2", "World 3"], default =
     # Happens when menu changes or when priors change
 
 # TODO: change game when priors change
-
 game = lift((x) -> build_stage_2(x, attacker_preference), normalized_observable_p)
-# game = build_stage_2(normalized_observable_p[], attacker_preference)
-b_array = lift((r, p, game) -> compute_stage_2(r, p, attacker_preference, game), 
-    observable_r, normalized_observable_p, game)
-
-#TODO: plot using b_array
+b_array = lift((r, p, game) -> compute_stage_2(r, p, attacker_preference, game[1]), 
+    observable_r.observable, normalized_observable_p, game)
+#TODO: plot using b_array.val
 on(world_menu) do world
     if world == "World 1"
     elseif world == "World 2"
