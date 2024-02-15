@@ -212,7 +212,7 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     display(fig, fullscreen = true)
 end
 
-function demo_stage2()
+function demo_stage2(;use_file=true)
     # Game Parameters
         attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
         num_worlds = 3
@@ -367,8 +367,11 @@ Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight
 Label(fig[2,3], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
 Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
 
-signal_menu = Menu(fig[1,1], options = [0, 1, 2, 3], default = 1)
-world_menu = Menu(fig[1,3], options=["World 1", "World 2", "World 3"], default = "World 2")
+signal_menu = Menu(fig[0,1], options = [0, 1, 2, 3], default = 1)
+
+world_menu = Menu(fig[0,3], options=["World 1", "World 2", "World 3"], default = "World 1")
+use_world_menu = true
+# Main.@infiltrate
 
 # Plot scout allocation 
 # north_points = lift(x->get_random_point_within_ball(; radius = x*0.5, num_points = round(Int, 100*x)), scout_north)
@@ -385,21 +388,89 @@ world_menu = Menu(fig[1,3], options=["World 1", "World 2", "World 3"], default =
 game = lift((x) -> build_stage_2(x, attacker_preference), normalized_observable_p)
 b_array = lift((r, p, game) -> compute_stage_2(r, p, attacker_preference, game[1]), 
     observable_r.observable, normalized_observable_p, game)
-#TODO: plot using b_array.val
-on(world_menu) do world
-    if world == "World 1"
-    elseif world == "World 2"
-    else # world == "World 3"
+
+# Create an array of observables from b_array
+# b_array_obs = [lift((x,i,j) -> x[Block(i)][j], b_array, i,j) for j in 1:3 for i in 1:10]
+
+b_array_obs_f = (n, m) -> lift((x, i, j) -> x[Block(i)][j], b_array, n, m)
+axes = [ax_north, ax_east, ax_west]
+defender_colors = [(:orange, opacity), (:pink, opacity+.2), (:green, opacity)]
+# Main.@infiltrate
+
+on(signal_menu.selection, priority = 1) do signal
+    # print("signal menu selection")
+    if signal == 0
+        use_world_menu = true
+        world_menu.selection = "World 1"
+    elseif signal == 1
+        use_world_menu = false
+        world_menu.selection = "World 1"
+    elseif signal == 2
+        use_world_menu = false
+        world_menu.selection = "World 2"
+    else #signal == 3
+        use_world_menu = false
+        world_menu.selection = "World 3"
+    end
+    # return Consume()
+end
+
+on(world_menu.selection, priority = 0) do world
+    print("World menu selection " * world_menu.selection[]*"\n")
+    print("World menu selection " * world *"\n")
+    # Box(fig[1,2], color=(:white))
+    # Box(fig[2,1], color=(:white))
+    # Box(fig[2,3], color=(:white))
+    #TODO make scatter functions use observables for points, instead of values. It is not refreshing.
+        # maybe enemy scatter overwrites defender scatter?
+    #TODO make world menu disappear when signal != 0
+    #TODO make triangles not scatter
+    if use_world_menu # signal = 0
+        # plotting defender (same for all worlds when signal = 0
+        for idx in 1:3
+            scatter!(axes[idx], b_array_obs_f(1, idx), b_array_obs_f(1, idx),
+                markersize = 15, color = defender_colors[idx])
+        end
+        # plotting attacker, changes per world
+        if world == "World 1"
+            print("Using World: 1\n")
+            
+            for idx in 1:3
+                scatter!(axes[idx], b_array_obs_f(5, idx), b_array_obs_f(5, idx),
+                    markersize = 15, color = (:red, opacity))
+            end
+        elseif world == "World 2"
+            print("Using World: 2\n")
+            for idx in 1:3
+                scatter!(axes[idx], b_array_obs_f(6, idx), b_array_obs_f(6, idx),
+                    markersize = 15, color = (:red, opacity))
+            end
+        else # world == "World 3"
+            print("Using World: 3\n")
+            for idx in 1:3
+                scatter!(axes[idx], b_array_obs_f(7, idx), b_array_obs_f(7, idx),
+                    markersize = 15, color = (:red, opacity))
+            end
+        end
+        
+    else
+        for idx in 1:3
+            scatter!(axes[idx], b_array_obs_f(4 + signal_menu.selection[], idx),
+             b_array_obs_f(4 + signal_menu.selection[], idx),
+                markersize = 15, color = defender_colors(idx))
+        end
+        for idx in 1:3
+            scatter!(axes[idx], b_array_obs_f(7 + signal_menu.selection[], idx),
+             b_array_obs_f(7 + signal_menu.selection[], idx),
+                markersize = 15, color = (:red, opacity))
+        end
+            # b_array.val[Block(1 + signal_menu.selection[])],
+            # v = b_array.val[Block(7 + signal_menu.selection[])],
+            # fig = fig, ax_n = ax_north, ax_e = ax_east, ax_w = ax_west)
     end
 end
 
-on(signal_menu) do signal
-    if signal == 0
-    elseif signal == 1
-    elseif signal == 2
-    else #signal == 3
-    end
-end
+
 
 # scatter!(ax_north, north_points, markersize = 15, color = (:orange, opacity))
 # scatter!(ax_east, east_points, markersize = 15, color = (:pink, opacity+0.2))
@@ -408,6 +479,26 @@ end
 
 display(fig, fullscreen = true)
 end
+
+function draw_world(;u, v, fig, ax_n, ax_e, ax_w)
+    u = round.(u, digits = 2)
+    v = round.(v, digits = 2)
+    opacity = 0.5
+
+    print("\nU:\n")
+    print(u)
+    print("\nV:\n")
+    print(v)
+    
+    scatter!(ax_n, u, u, markersize = 15, color = (:orange, opacity))
+    scatter!(ax_e, u, u, markersize = 15, color = (:pink, opacity + .2))
+    scatter!(ax_w, u, u, markersize = 15, color = (:green, opacity))
+
+    scatter!(ax_n, v, v, markersize = 15, color = (:red, opacity))
+    scatter!(ax_e, v, v, markersize = 15, color = (:red, opacity))
+    scatter!(ax_w, v, v, markersize = 15, color = (:red, opacity))
+end
+
 
 function compute_all_r_save_to_file(;_prior_range = 0.01:.1:1.1,
      attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]],
