@@ -2,7 +2,10 @@ using GamesVoI
 using BlockArrays
 using LinearAlgebra: norm_sqr, norm
 using Zygote
-using GLMakie: Figure, Axis, Colorbar, heatmap!, text!, surface!, Axis3
+using Colors
+using GLMakie: Figure, Axis, Colorbar, heatmap!, text!, surface!, scatter!, Axis3
+
+using Infiltrator
 
 """ Nomenclature
     N                         : Number of worlds (=3)
@@ -98,21 +101,30 @@ end
 """
 Temp. script to calculate and plot surfaces for the terms in Stage 1's cost function 
 """
-function run_stage_1_breakout()
-    dr = 0.05
+function run_stage_1_breakout(;display_controls = 0, dr = 0.05)
+    # dr = 0.05
     ps = [1/3, 1/3, 1/3]
     βs = [
         [2.1, 2.0, 2.0], 
         [2.0, 2.1, 2.0], 
         [2.0, 2.0, 2.1]
     ] 
-    world_1_misid_costs = calculate_misid_costs(ps, βs, 1; dr)
-    world_2_misid_costs = calculate_misid_costs(ps, βs, 2; dr)
-    world_3_misid_costs = calculate_misid_costs(ps, βs, 3; dr)
-    world_1_id_costs = calculate_id_costs(ps, βs, 1; dr)
-    world_2_id_costs = calculate_id_costs(ps, βs, 2; dr)
-    world_3_id_costs = calculate_id_costs(ps, βs, 3; dr)
 
+    if (display_controls in [1,2])
+        world_1_misid_costs, world_1_misid_controls = calculate_misid_costs(ps, βs, 1; dr, return_controls=display_controls)
+        world_2_misid_costs, world_2_misid_controls = calculate_misid_costs(ps, βs, 2; dr, return_controls=display_controls)
+        world_3_misid_costs, world_3_misid_controls = calculate_misid_costs(ps, βs, 3; dr, return_controls=display_controls)
+        world_1_id_costs, world_1_id_controls = calculate_id_costs(ps, βs, 1; dr, return_controls=display_controls)
+        world_2_id_costs, world_2_id_controls = calculate_id_costs(ps, βs, 2; dr, return_controls=display_controls)
+        world_3_id_costs, world_3_id_controls = calculate_id_costs(ps, βs, 3; dr, return_controls=display_controls)
+    else
+        world_1_misid_costs = calculate_misid_costs(ps, βs, 1; dr)
+        world_2_misid_costs = calculate_misid_costs(ps, βs, 2; dr)
+        world_3_misid_costs = calculate_misid_costs(ps, βs, 3; dr)
+        world_1_id_costs = calculate_id_costs(ps, βs, 1; dr)
+        world_2_id_costs = calculate_id_costs(ps, βs, 2; dr)
+        world_3_id_costs = calculate_id_costs(ps, βs, 3; dr)
+    end
     # Normalize using maximum value across all worlds
     max_value =
         maximum(
@@ -135,25 +147,57 @@ function run_stage_1_breakout()
     world_2_id_costs = [isnan(c) ? NaN : c / max_value for c in world_2_id_costs]
     world_3_id_costs = [isnan(c) ? NaN : c / max_value for c in world_3_id_costs]
 
-    display_stage_1_costs(
-        [
-            world_1_id_costs,
-            world_2_id_costs,
-            world_3_id_costs,
-            world_1_misid_costs,
-            world_2_misid_costs,
-            world_3_misid_costs,
-        ],
-        ps,
-    )
+    if (display_controls in [1,2])
+        display_stage_1_costs_controls(
+            [
+                world_1_id_costs,
+                world_2_id_costs,
+                world_3_id_costs,
+                world_1_misid_costs,
+                world_2_misid_costs,
+                world_3_misid_costs,
+            ],
+            [
+                world_1_id_controls,
+                world_2_id_controls,
+                world_3_id_controls,
+                world_1_misid_controls,
+                world_2_misid_controls,
+                world_3_misid_controls,
+            ],
+            ps,
+        )
+    else
+        display_stage_1_costs(
+            [
+                world_1_id_costs,
+                world_2_id_costs,
+                world_3_id_costs,
+                world_1_misid_costs,
+                world_2_misid_costs,
+                world_3_misid_costs,
+            ],
+            ps,
+        )
+    end
+    
 end
 
-function calculate_id_costs(ps, βs, world_idx; dr = 0.05)
+function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls=0)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
     game, _ = build_stage_2(ps, βs)
     rs = 0:dr:1
     num_worlds = length(ps)
     id_costs = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1))
+    if(return_controls>0) ## ideally, it should be 1 or 2 for P1 or P2
+        if(return_controls <= 2)
+            controls = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1), 3)
+        else 
+            println("Invalid return_controls option.")
+            return_controls = 0
+        end
+    end
+
     for (i, r1) in enumerate(rs)
         for (j, r2) in enumerate(rs)
             if r1 + r2 > 1
@@ -171,18 +215,35 @@ function calculate_id_costs(ps, βs, world_idx; dr = 0.05)
                     βs[world_idx],
                 )
             id_costs[i, j] = id_cost
+            if(return_controls>0)
+                ind = return_controls == 2 ? 7 + world_idx : 1+world_idx ## select the right block
+                controls[i,j,:] = x[Block(ind)]
+            end
         end
     end
 
-    return id_costs
+    if(return_controls>0)
+        return id_costs, controls
+    else
+        return id_costs
+    end
 end
 
-function calculate_misid_costs(ps, βs, world_idx; dr = 0.05)
+function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 0)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
     game, _ = build_stage_2(ps, βs)
     rs = 0:dr:1
     num_worlds = length(ps)
     misid_costs = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1))
+    if(return_controls>0) ## ideally, it should be 1 or 2 for P1 or P2
+        if(return_controls <= 2)
+            controls = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1), 3)
+        else 
+            println("Invalid return_controls option.")
+            return_controls = 0
+        end
+    end
+
     for (i, r1) in enumerate(rs)
         for (j, r2) in enumerate(rs)
             if r1 + r2 > 1
@@ -196,10 +257,19 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05)
             misid_cost = J_1(defender_signal_0, attacker_signal_0_world_idx, βs[world_idx])
             misid_cost = (1 - r[world_idx]) * ps[world_idx] * misid_cost  # weight by p(w_k|s¹=0)
             misid_costs[i, j] = misid_cost
+            if(return_controls>0)
+                ind = return_controls == 2 ? 4 + world_idx : 1 ## select the right block
+                controls[i,j,:] = x[Block(ind)]
+            end
         end
     end
 
-    return misid_costs
+    if(return_controls>0)
+        return misid_costs, controls
+    else
+        return misid_costs
+    end
+
 end
 
 """
@@ -290,6 +360,132 @@ function display_stage_1_costs(costs, ps)
     end
     fig
 end
+
+"""
+Display surface of Stage 1's objective function, colored according to a player's action. Assumes number of worlds is 3.
+
+Input: 
+    Ks: 2D Matrix of stage 1's objective function values for each r in the simplex
+Output: 
+    fig: Figure with simplex heatmap
+"""
+function display_stage_1_costs_controls(costs, controls, ps)
+    rs = 0:(1 / (size(costs[1])[1] - 1)):1
+    num_worlds = length(ps)
+    fig = Figure(size = (1500, 1000), title = "test")
+    axs = [
+        [
+            Axis3(
+                fig[1, world_idx],
+                aspect = (1, 1, 1),
+                perspectiveness = 0.5,
+                elevation = pi / 5,
+                azimuth = -π * (1 / 2 + 1 / 4),
+                zgridcolor = :grey,
+                ygridcolor = :grey,
+                xgridcolor = :grey;
+                xlabel = "r₁",
+                ylabel = "r₂",
+                zlabel = "Cost",
+                title = "World $world_idx",
+                limits = (nothing, nothing, (0.01, 1)),
+            ) for world_idx in 1:num_worlds
+        ],
+        [
+            Axis3(
+                fig[2, world_idx],
+                aspect = (1, 1, 1),
+                perspectiveness = 0.5,
+                elevation = pi / 5,
+                azimuth = -π * (1 / 2 + 1 / 4),
+                zgridcolor = :grey,
+                ygridcolor = :grey,
+                xgridcolor = :grey;
+                xlabel = "r₁",
+                ylabel = "r₂",
+                zlabel = "Cost",
+                title = "World $world_idx",
+                limits = (nothing, nothing, (0.01, 1)),
+            ) for world_idx in 1:num_worlds
+        ],
+    ]
+    for world_idx in 1:num_worlds
+        colors = get_RGB_vect(controls[world_idx])
+        for ii in 1:size(costs[world_idx])[1]
+            for jj in 1:size(costs[world_idx])[2]
+                hmap = scatter!(
+                    axs[1][world_idx],
+                    rs[ii],
+                    rs[jj],
+                    costs[world_idx][ii,jj],
+                    color = colors[ii,jj],
+                    colormap = :viridis,
+                    colorrange = (0, 1),
+                )
+            end
+        end
+        
+        # text!(axs[world_idx], "$(round(ps[1], digits=2))", position = (0.9, 0.4, cost_min), font = "Bold")
+        # text!(axs[world_idx], "$(round(ps[2], digits=2))", position = (0.1, 0.95, cost_min), font = "Bold")
+        # text!(axs[world_idx], "$(round(ps[3], digits=2))", position = (0.2, 0.1, cost_min), font = "Bold")
+
+    end
+    for world_idx in 1:num_worlds
+        colors = get_RGB_vect(controls[world_idx+num_worlds])
+        for ii in 1:size(costs[world_idx+num_worlds])[1]
+            for jj in 1:size(costs[world_idx+num_worlds])[2]
+                hmap = scatter!(
+                    axs[2][world_idx],
+                    rs[ii],
+                    rs[jj],
+                    costs[world_idx+num_worlds][ii,jj],
+                    color = colors[ii,jj],
+                    colormap = :viridis,
+                    colorrange = (0, 1),
+                )
+            end
+        end
+        # text!(axs[world_idx], "$(round(ps[1], digits=2))", position = (0.9, 0.4, cost_min), font = "Bold")
+        # text!(axs[world_idx], "$(round(ps[2], digits=2))", position = (0.1, 0.95, cost_min), font = "Bold")
+        # text!(axs[world_idx], "$(round(ps[3], digits=2))", position = (0.2, 0.1, cost_min), font = "Bold")
+
+        # if world_idx == num_worlds
+        #     Colorbar(
+        #         fig[1:2, num_worlds + 1],
+        #         hmap;
+        #         label = "Cost",
+        #         width = 15,
+        #         ticksize = 15,
+        #         tickalign = 1,
+        #     )
+        # end
+    end
+    fig
+end
+
+"""
+This is quick function to turn my controls into RGB vectors
+"""
+function get_RGB_vect(controls)
+    R = controls[:,:,1]
+    G = controls[:,:,2]
+    B = controls[:,:,3]
+    if size(R) == size(G) == size(B)
+        n = size(R)[1]
+        m = size(R)[2]
+        RGB_values = Matrix{RGB}(undef, n, n)
+        for i in 1:n
+            for j in 1:m
+                RGB_values[i, j] = RGB(R[i, j], G[i, j], B[i, j])
+            end
+        end
+        return RGB_values
+    else
+        return(RGB(1,0,0))
+    end
+
+end
+
 
 """
 Calculate Stage 1's objective function for all possible values of r.
