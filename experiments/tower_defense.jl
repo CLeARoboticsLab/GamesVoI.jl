@@ -611,7 +611,7 @@ function compute_stage_2(r, ps, βs, game; initial_guess = nothing, verbose = fa
     solution = solve(
         game,
         r;
-        initial_guess = isnothing(initial_guess) ? zeros(total_dim(game)) : initial_guess,
+        initial_guess = isnothing(initial_guess) ? 1/3 * ones(total_dim(game)) : initial_guess,
         verbose = verbose,
         return_primals = false,
     )
