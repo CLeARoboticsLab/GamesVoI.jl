@@ -256,7 +256,7 @@ Output:
 function display_stage_1_costs(costs, ps)
     rs = 0:(1 / (size(costs[1])[1] - 1)):1
     num_worlds = length(ps)
-    fig = Figure(size = (1500, 1000), title = "test")
+    fig = Figure(size = (1500, 800), title = "test")
     axs = [
         [
             Axis3(
