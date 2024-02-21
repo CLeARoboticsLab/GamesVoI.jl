@@ -213,6 +213,11 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
 end
 
 function demo_stage2(;use_file=true)
+    save_file = nothing
+    if use_file
+        save_file = JSON3.read(open("data2.tmp", "r"), Dict{String, Vector{Float64}})
+        println("read file")
+    end
     # Game Parameters
         attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
         num_worlds = 3
@@ -227,7 +232,7 @@ function demo_stage2(;use_file=true)
 # Axis parameters
     # borders
     ax_aspect = 1 
-    ax_limits = (0, 1, 0, 1)
+    ax_limits = (0, 2, 0, 2)
     # title
     ax_titlegap = 1
     ax_titlesize = 30
@@ -367,24 +372,10 @@ Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight
 Label(fig[2,3], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
 Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
 
-signal_menu = Menu(fig[0,1], options = [0, 1, 2, 3], default = 1)
-
-world_menu = Menu(fig[0,3], options=["World 1", "World 2", "World 3"], default = "World 1")
-use_world_menu = true
 # Main.@infiltrate
+menu = Menu(fig[0,1], options = zip(["Signal 0 World 1", "Signal 0 World 2", "Signal 0 World 3", "Signal 1 World 1", "Signal 2 World 2", "Signal 3 World 3"],
+[0, 1, 2, 3, 4 ,5]))
 
-# Plot scout allocation 
-# north_points = lift(x->get_random_point_within_ball(; radius = x*0.5, num_points = round(Int, 100*x)), scout_north)
-# east_points = lift(x->get_random_point_within_ball(; radius = x*0.5, num_points = round(Int, 100*x)), scout_east)
-# west_points = lift(x->get_random_point_within_ball(; radius = x*0.5, num_points = round(Int, 100*x)), scout_west)
-# scatter!(ax_north, north_points, markersize = 15, color = (:orange, opacity))
-# scatter!(ax_east, east_points, markersize = 15, color = (:pink, opacity+0.2))
-# scatter!(ax_west, west_points, markersize = 15, color = (:green, opacity))
-
-#TODO: Plot defense / attacker allocation
-    # Happens when menu changes or when priors change
-
-# TODO: change game when priors change
 game = lift((x) -> build_stage_2(x, attacker_preference), normalized_observable_p)
 b_array = lift((r, p, game) -> compute_stage_2(r, p, attacker_preference, game[1]), 
     observable_r.observable, normalized_observable_p, game)
@@ -392,103 +383,198 @@ b_array = lift((r, p, game) -> compute_stage_2(r, p, attacker_preference, game[1
 # Create an array of observables from b_array
 # b_array_obs = [lift((x,i,j) -> x[Block(i)][j], b_array, i,j) for j in 1:3 for i in 1:10]
 
-b_array_obs_f = (n, m) -> lift((x, i, j) -> x[Block(i)][j], b_array, n, m)
-axes = [ax_north, ax_east, ax_west]
-defender_colors = [(:orange, opacity), (:pink, opacity+.2), (:green, opacity)]
+b_array_obs_f = (i, x) -> x[][Block(i)]
+b_array_obs_f_block = (i) -> b_array[][Block(i)]
+
 # Main.@infiltrate
 
-on(signal_menu.selection, priority = 1) do signal
-    # print("signal menu selection")
-    if signal == 0
-        use_world_menu = true
-        world_menu.selection = "World 1"
-    elseif signal == 1
-        use_world_menu = false
-        world_menu.selection = "World 1"
-    elseif signal == 2
-        use_world_menu = false
-        world_menu.selection = "World 2"
-    else #signal == 3
-        use_world_menu = false
-        world_menu.selection = "World 3"
+u_north = Observable(0.0)
+u_east = Observable(0.0)
+u_west = Observable(0.0)
+v_north = Observable(0.0)
+v_east = Observable(0.0)
+v_west = Observable(0.0)
+
+on(b_array) do y
+    x = menu.selection[]
+    if x == 0 #s 0 w 1
+        # draw_world(;u = b_array_obs_f_block(1), v = b_array_obs_f_block(5), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(5), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(5), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(5), digits=2)[3]
+        # v[] = round.(b_array_obs_f_block(5), digits=2)
+    elseif x == 1
+        # draw_world(;u = b_array_obs_f_block(1), v = b_array_obs_f_block(6), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        # u[] = round.(b_array_obs_f_block(1), digits=2)
+        # v[] = round.(b_array_obs_f_block(6), digits=2)
+
+        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(6), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(6), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(6), digits=2)[3]
+    elseif x == 2
+        # draw_world(;u = b_array_obs_f_block(1), v = b_array_obs_f_block(7), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        # u[] = round.(b_array_obs_f_block(1), digits=2)
+        # v[] = round.(b_array_obs_f_block(7), digits=2)
+
+        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(7), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(7), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(7), digits=2)[3]
+    elseif x == 3
+        # draw_world(;u = b_array_obs_f_block(2), v = b_array_obs_f_block(8), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        # u[] = round.(b_array_obs_f_block(1), digits=2)
+        # v[] = round.(b_array_obs_f_block(8), digits=2)
+
+        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(8), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(8), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(8), digits=2)[3]
+    elseif x == 4
+        # draw_world(;u = b_array_obs_f_block(3), v = b_array_obs_f_block(9), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        # u[] = round.(b_array_obs_f_block(3), digits=2)
+        # v[] = round.(b_array_obs_f_block(9), digits=2)
+        u_north[] = round.(b_array_obs_f_block(3), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(3), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(3), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(9), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(9), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(9), digits=2)[3]
+    elseif x == 5
+        # draw_world(;u = b_array_obs_f_block(4), v = b_array_obs_f_block(10), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        # u[] = round.(b_array_obs_f_block(4), digits=2)
+        # v[] = round.(b_array_obs_f_block(10), digits=2)
+        u_north[] = round.(b_array_obs_f_block(4), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(4), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(4), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(10), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(10), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(10), digits=2)[3]
     end
-    # return Consume()
 end
 
-on(world_menu.selection, priority = 0) do world
-    print("World menu selection " * world_menu.selection[]*"\n")
-    print("World menu selection " * world *"\n")
-    # Box(fig[1,2], color=(:white))
-    # Box(fig[2,1], color=(:white))
-    # Box(fig[2,3], color=(:white))
-    #TODO make scatter functions use observables for points, instead of values. It is not refreshing.
-        # maybe enemy scatter overwrites defender scatter?
-    #TODO make world menu disappear when signal != 0
-    #TODO make triangles not scatter
-    if use_world_menu # signal = 0
-        # plotting defender (same for all worlds when signal = 0
-        for idx in 1:3
-            scatter!(axes[idx], b_array_obs_f(1, idx), b_array_obs_f(1, idx),
-                markersize = 15, color = defender_colors[idx])
-        end
-        # plotting attacker, changes per world
-        if world == "World 1"
-            print("Using World: 1\n")
-            
-            for idx in 1:3
-                scatter!(axes[idx], b_array_obs_f(5, idx), b_array_obs_f(5, idx),
-                    markersize = 15, color = (:red, opacity))
-            end
-        elseif world == "World 2"
-            print("Using World: 2\n")
-            for idx in 1:3
-                scatter!(axes[idx], b_array_obs_f(6, idx), b_array_obs_f(6, idx),
-                    markersize = 15, color = (:red, opacity))
-            end
-        else # world == "World 3"
-            print("Using World: 3\n")
-            for idx in 1:3
-                scatter!(axes[idx], b_array_obs_f(7, idx), b_array_obs_f(7, idx),
-                    markersize = 15, color = (:red, opacity))
-            end
-        end
-        
-    else
-        for idx in 1:3
-            scatter!(axes[idx], b_array_obs_f(4 + signal_menu.selection[], idx),
-             b_array_obs_f(4 + signal_menu.selection[], idx),
-                markersize = 15, color = defender_colors(idx))
-        end
-        for idx in 1:3
-            scatter!(axes[idx], b_array_obs_f(7 + signal_menu.selection[], idx),
-             b_array_obs_f(7 + signal_menu.selection[], idx),
-                markersize = 15, color = (:red, opacity))
-        end
-            # b_array.val[Block(1 + signal_menu.selection[])],
-            # v = b_array.val[Block(7 + signal_menu.selection[])],
-            # fig = fig, ax_n = ax_north, ax_e = ax_east, ax_w = ax_west)
+on(menu.selection) do x
+    if x == 0 #s 0 w 1
+        # draw_world(;u = b_array_obs_f_block(1), v = b_array_obs_f_block(5), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(5), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(5), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(5), digits=2)[3]
+        # v[] = round.(b_array_obs_f_block(5), digits=2)
+    elseif x == 1
+        # draw_world(;u = b_array_obs_f_block(1), v = b_array_obs_f_block(6), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        # u[] = round.(b_array_obs_f_block(1), digits=2)
+        # v[] = round.(b_array_obs_f_block(6), digits=2)
+
+        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(6), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(6), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(6), digits=2)[3]
+    elseif x == 2
+        # draw_world(;u = b_array_obs_f_block(1), v = b_array_obs_f_block(7), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        # u[] = round.(b_array_obs_f_block(1), digits=2)
+        # v[] = round.(b_array_obs_f_block(7), digits=2)
+
+        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(7), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(7), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(7), digits=2)[3]
+    elseif x == 3
+        # draw_world(;u = b_array_obs_f_block(2), v = b_array_obs_f_block(8), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        # u[] = round.(b_array_obs_f_block(1), digits=2)
+        # v[] = round.(b_array_obs_f_block(8), digits=2)
+
+        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(8), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(8), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(8), digits=2)[3]
+    elseif x == 4
+        # draw_world(;u = b_array_obs_f_block(3), v = b_array_obs_f_block(9), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        # u[] = round.(b_array_obs_f_block(3), digits=2)
+        # v[] = round.(b_array_obs_f_block(9), digits=2)
+        u_north[] = round.(b_array_obs_f_block(3), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(3), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(3), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(9), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(9), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(9), digits=2)[3]
+    elseif x == 5
+        # draw_world(;u = b_array_obs_f_block(4), v = b_array_obs_f_block(10), fig=fig, ax_n=ax_north, ax_e=ax_east, ax_w=ax_west)
+        # u[] = round.(b_array_obs_f_block(4), digits=2)
+        # v[] = round.(b_array_obs_f_block(10), digits=2)
+        u_north[] = round.(b_array_obs_f_block(4), digits=2)[1]
+        u_east[] = round.(b_array_obs_f_block(4), digits=2)[2]
+        u_west[] = round.(b_array_obs_f_block(4), digits=2)[3]
+
+        v_north[] = round.(b_array_obs_f_block(10), digits=2)[1]
+        v_east[] = round.(b_array_obs_f_block(10), digits=2)[2]
+        v_west[] = round.(b_array_obs_f_block(10), digits=2)[3]
     end
 end
 
+defender_triangle_north = @lift Point2f[(1 - $u_north, 0), (1 + $u_north, 0), (1, 1 * $u_north)]
+enemy_triangle_north = @lift Point2f[(1 - $v_north, 2), (1 + $v_north, 2), (1, 2 - (1 * $v_north))]
+poly!(ax_north, defender_triangle_north, color = (:orange, opacity))
+poly!(ax_north, enemy_triangle_north, color = (:red, opacity))
 
+defender_triangle_east = @lift Point2f[(0, 1 - $u_east * 1), (0, 1 + 1 * $u_east), (1 * $u_east, 1)]
+enemy_triangle_east = @lift Point2f[(2, 1 - $v_east * 1), (2, 1 + 1 * $v_east), (2 - (1 * $v_east), 1)]
+poly!(ax_east, defender_triangle_east, color = (:orange, opacity))
+poly!(ax_east, enemy_triangle_east, color = (:red, opacity))
 
-# scatter!(ax_north, north_points, markersize = 15, color = (:orange, opacity))
-# scatter!(ax_east, east_points, markersize = 15, color = (:pink, opacity+0.2))
-# scatter!(ax_west, west_points, markersize = 15, color = (:green, opacity))
+defender_triangle_west = @lift Point2f[(2, 1 - $u_west * 1), (2, 1 + 1 * $u_west), (2 - 1 * $u_west, 1)]
+enemy_triangle_west = @lift Point2f[(0, 1 - $v_west * 1), (0, 1 + 1 * $v_west), (1 - (1 * $v_west), 1)]
+poly!(ax_west, defender_triangle_west, color = (:orange, opacity))
+poly!(ax_west, enemy_triangle_west, color = (:red, opacity))
+
+# scatter!(ax_east, u_east, u_east, markersize = 15, color = (:pink, opacity + .2))
+# scatter!(ax_west, u_west, u_west, markersize = 15, color = (:green, opacity))
+
+# # scatter!(ax_north, v_north, v_north, markersize = 15, color = (:red, opacity))
+# scatter!(ax_east, v_east, v_east, markersize = 15, color = (:red, opacity))
+# scatter!(ax_west, v_west, v_west, markersize = 15, color = (:red, opacity))
 
 
 display(fig, fullscreen = true)
 end
 
 function draw_world(;u, v, fig, ax_n, ax_e, ax_w)
-    u = round.(u, digits = 2)
-    v = round.(v, digits = 2)
+    # u = round.(u, digits = 2)
+    # v = round.(v, digits = 2)
     opacity = 0.5
 
-    print("\nU:\n")
-    print(u)
-    print("\nV:\n")
-    print(v)
+    # print("\nU:\n")
+    # print(u)
+    # print("\nV:\n")
+    # print(v)
     
     scatter!(ax_n, u, u, markersize = 15, color = (:orange, opacity))
     scatter!(ax_e, u, u, markersize = 15, color = (:pink, opacity + .2))
@@ -497,6 +583,7 @@ function draw_world(;u, v, fig, ax_n, ax_e, ax_w)
     scatter!(ax_n, v, v, markersize = 15, color = (:red, opacity))
     scatter!(ax_e, v, v, markersize = 15, color = (:red, opacity))
     scatter!(ax_w, v, v, markersize = 15, color = (:red, opacity))
+    display(fig)
 end
 
 
