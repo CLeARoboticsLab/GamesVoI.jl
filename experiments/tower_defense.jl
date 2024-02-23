@@ -3,7 +3,7 @@ using BlockArrays
 using LinearAlgebra: norm_sqr, norm
 using Zygote
 using Colors
-using GLMakie: Figure, Axis, Colorbar, heatmap!, text!, surface!, scatter!, Axis3
+using GLMakie: Figure, Axis, Colorbar, heatmap!, text!, surface!, scatter!, Axis3, save
 
 using Infiltrator
 
@@ -541,6 +541,7 @@ function display_stage_1_costs_controls(costs, controls, ps)
         #     )
         # end
     end
+    save("figures/stage_1_controls.png", fig)
     fig
 end
 
