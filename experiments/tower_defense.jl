@@ -258,9 +258,9 @@ function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls=0)
                     βs[world_idx],
                 )
             id_costs[i, j] = id_cost
-            if(return_controls>0)
-                ind = return_controls == 2 ? 7 + world_idx : 1+world_idx ## select the right block
-                controls[i,j,:] = x[Block(ind)]
+            if (return_controls > 0)
+                ind = return_controls == 2 ? world_idx + 2 * num_worlds + 1 : 1 + world_idx ## select the right block
+                controls[i, j, :] = x[Block(ind)]
             end
         end
     end
@@ -300,9 +300,9 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 
             misid_cost = J_1(defender_signal_0, attacker_signal_0_world_idx, βs[world_idx])
             misid_cost = (1 - r[world_idx]) * ps[world_idx] * misid_cost  # weight by p(w_k|s¹=0)
             misid_costs[i, j] = misid_cost
-            if(return_controls>0)
-                ind = return_controls == 2 ? 4 + world_idx : 1 ## select the right block
-                controls[i,j,:] = x[Block(ind)]
+            if (return_controls > 0)
+                ind = return_controls == 2 ? world_idx + num_worlds + 1 : 1 ## select the right block
+                controls[i, j, :] = x[Block(ind)]
             end
         end
     end
