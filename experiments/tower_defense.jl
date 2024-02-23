@@ -327,6 +327,7 @@ function display_stage_1_costs(costs, ps)
     rs = 0:(1 / (size(costs[1])[1] - 1)):1
     num_worlds = length(ps)
     fig = Figure(size = (1500, 800), title = "test")
+    max_value = 1.0
     axs = [
         [
             Axis3(
@@ -342,7 +343,7 @@ function display_stage_1_costs(costs, ps)
                 ylabel = "r₂",
                 zlabel = "Cost",
                 title = "World $world_idx",
-                limits = (nothing, nothing, (0.01, 1)),
+                limits = (nothing, nothing, (0.01, max_value)),
             ) for world_idx in 1:num_worlds
         ],
         [
@@ -359,7 +360,7 @@ function display_stage_1_costs(costs, ps)
                 ylabel = "r₂",
                 zlabel = "Cost",
                 title = "World $world_idx",
-                limits = (nothing, nothing, (0.01, 1)),
+                limits = (nothing, nothing, (0.01, max_value)),
             ) for world_idx in 1:num_worlds
         ],
     ]
@@ -370,7 +371,7 @@ function display_stage_1_costs(costs, ps)
             rs,
             costs[world_idx],
             colormap = :viridis,
-            colorrange = (0, 1),
+            colorrange = (0, max_value),
         )
         # text!(axs[world_idx], "$(round(ps[1], digits=2))", position = (0.9, 0.4, cost_min), font = "Bold")
         # text!(axs[world_idx], "$(round(ps[2], digits=2))", position = (0.1, 0.95, cost_min), font = "Bold")
@@ -384,7 +385,7 @@ function display_stage_1_costs(costs, ps)
             rs,
             costs[world_idx + num_worlds],
             colormap = :viridis,
-            colorrange = (0, 1),
+            colorrange = (0, max_value),
         )
         # text!(axs[world_idx], "$(round(ps[1], digits=2))", position = (0.9, 0.4, cost_min), font = "Bold")
         # text!(axs[world_idx], "$(round(ps[2], digits=2))", position = (0.1, 0.95, cost_min), font = "Bold")
@@ -452,6 +453,7 @@ function display_stage_1_costs_controls(costs, controls, ps)
     rs = 0:(1 / (size(costs[1])[1] - 1)):1
     num_worlds = length(ps)
     fig = Figure(size = (1500, 1000), title = "test")
+    max_value = 1.0
     axs = [
         [
             Axis3(
@@ -466,8 +468,8 @@ function display_stage_1_costs_controls(costs, controls, ps)
                 xlabel = "r₁",
                 ylabel = "r₂",
                 zlabel = "Cost",
-                title = "World $world_idx",
-                limits = (nothing, nothing, (0.01, 1)),
+                title = "W$world_idx, S$world_idx",
+                limits = (nothing, nothing, (0.01, max_value)),
             ) for world_idx in 1:num_worlds
         ],
         [
@@ -483,8 +485,8 @@ function display_stage_1_costs_controls(costs, controls, ps)
                 xlabel = "r₁",
                 ylabel = "r₂",
                 zlabel = "Cost",
-                title = "World $world_idx",
-                limits = (nothing, nothing, (0.01, 1)),
+                title = "W$world_idx, S0",
+                limits = (nothing, nothing, (0.01, max_value)),
             ) for world_idx in 1:num_worlds
         ],
     ]
@@ -499,7 +501,7 @@ function display_stage_1_costs_controls(costs, controls, ps)
                     costs[world_idx][ii,jj],
                     color = colors[ii,jj],
                     colormap = :viridis,
-                    colorrange = (0, 1),
+                    colorrange = (0, max_value),
                 )
             end
         end
@@ -520,7 +522,7 @@ function display_stage_1_costs_controls(costs, controls, ps)
                     costs[world_idx+num_worlds][ii,jj],
                     color = colors[ii,jj],
                     colormap = :viridis,
-                    colorrange = (0, 1),
+                    colorrange = (0, max_value),
                 )
             end
         end
