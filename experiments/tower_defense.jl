@@ -2,7 +2,7 @@ using GamesVoI
 using BlockArrays
 using LinearAlgebra: norm_sqr, norm
 using Zygote
-using GLMakie: Figure, Axis, Colorbar, heatmap!, text!, surface!, Axis3
+using GLMakie: Figure, Axis, Colorbar, heatmap!, text!, surface!, Axis3, barplot!
 
 """ Nomenclature
     N                         : Number of worlds (=3)
@@ -99,13 +99,14 @@ end
 Temp. script to calculate and plot surfaces for the terms in Stage 1's cost function 
 """
 function run_stage_1_breakout()
-    dr = 0.05
+    dr = 0.01
     ps = [1/3, 1/3, 1/3]
+    ps = [1/2, 1/4, 1/4]
     βs = [
-        [2.1, 2.0, 2.0], 
-        [2.0, 2.1, 2.0], 
-        [2.0, 2.0, 2.1]
-    ] 
+        [4.0, 2.0, 2.0], 
+        [2.0, 4.0, 2.0], 
+        [2.0, 2.0, 4.0]
+    ]
     world_1_misid_costs = calculate_misid_costs(ps, βs, 1; dr)
     world_2_misid_costs = calculate_misid_costs(ps, βs, 2; dr)
     world_3_misid_costs = calculate_misid_costs(ps, βs, 3; dr)
@@ -169,6 +170,63 @@ function run_residuals()
         ps,
     )
 end
+
+function run_barplot()
+    r = [1 / 3, 1 / 3, 1 / 3]
+    ps = [1/3, 1 / 3, 1 / 3]
+    ps = [1/2, 1/4, 1/4]
+    βs = [
+        [4.0, 2.0, 2.0], 
+        [2.0, 4.0, 2.0], 
+        [2.0, 2.0, 4.0]
+    ]
+    game, _ = build_stage_2(ps, βs)
+    x = compute_stage_2(r, ps, βs, game)
+    defender_signal_0 = x[Block(1)]
+    misid_costs = zeros(Float64, 3)
+    id_costs = zeros(Float64, 3)
+    num_worlds = length(ps)
+
+    for world_idx in 1:num_worlds
+        attacker_signal_0_world_idx = x[Block(world_idx + num_worlds + 1)]
+        misid_costs[world_idx] =
+            (1 - r[world_idx]) *
+            ps[world_idx] *
+            J_1(defender_signal_0, attacker_signal_0_world_idx, βs[world_idx])
+    end
+
+    for world_idx in 1:num_worlds
+        id_costs[world_idx] =
+            r[world_idx] *
+            ps[world_idx] *
+            J_1(x[Block(world_idx + 1)], x[Block(world_idx + 2 * num_worlds + 1)], βs[world_idx])
+    end
+
+    f = Figure(
+        size = (800, 400),
+        title = "Stage 1 costs",
+    )
+    axs = [
+        Axis(f[1, 1], title = "Misid. costs", ylabel = "Cost", limits = (nothing, (0, 1))),
+        Axis(f[2, 1], title = "ID costs", ylabel = "Cost", limits = (nothing, (0, 1)))
+    ]
+    barplot!(
+        axs[1],
+        [1, 2, 3],
+        id_costs,
+        bar_width = 0.5,
+        xticks = ([1, 2, 3], ["w1, s1", "w2, s2", "w3, s3"]),
+    )
+    barplot!(
+        axs[2],
+        [1, 2, 3],
+        misid_costs,
+        bar_width = 0.5,
+        xticks = ([1, 2, 3], ["w1, s0", "w2, s0", "w3, s0"]),
+    )
+    f
+end
+
 
 function calculate_residuals(ps, βs, world_idx; dr = 0.05)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
