@@ -3,7 +3,21 @@ using BlockArrays
 using LinearAlgebra: norm_sqr, norm
 using Zygote
 using Colors
-using GLMakie: Figure, Axis, Colorbar, heatmap!, text!, surface!, scatter!, Axis3, save
+using GLMakie:
+    Figure,
+    Axis,
+    Colorbar,
+    heatmap!,
+    text!,
+    surface!,
+    scatter!,
+    Axis3,
+    save,
+    image,
+    DataAspect,
+    rotr90,
+    hidedecorations!
+using FileIO
 
 using Infiltrator
 
@@ -147,8 +161,9 @@ function run_stage_1_breakout(;display_controls = 0, dr = 0.05)
     world_2_id_costs = [isnan(c) ? NaN : c / max_value for c in world_2_id_costs]
     world_3_id_costs = [isnan(c) ? NaN : c / max_value for c in world_3_id_costs]
 
+    fig = nothing
     if (display_controls in [1,2])
-        display_stage_1_costs_controls(
+        fig = display_stage_1_costs_controls(
             [
                 world_1_id_costs,
                 world_2_id_costs,
@@ -168,7 +183,7 @@ function run_stage_1_breakout(;display_controls = 0, dr = 0.05)
             ps,
         )
     else
-        display_stage_1_costs(
+        fig = display_stage_1_costs(
             [
                 world_1_id_costs,
                 world_2_id_costs,
@@ -180,7 +195,45 @@ function run_stage_1_breakout(;display_controls = 0, dr = 0.05)
             ps,
         )
     end
-    
+    return fig
+end
+
+function run_sweep(perturbations; dr = 0.05)
+    ps = [1/3, 1/3, 1/3]
+    for perturbation in perturbations
+        βs = [
+                [3.0 + perturbation, 2.0, 2.0], 
+                [2.0, 3.0 + perturbation, 2.0], 
+                [2.0, 2.0, 3.0 + perturbation]
+            ]
+        Ks = calculate_stage_1_costs(ps, βs; dr)
+        
+        # Nasty but gets the job done
+        fig = Figure(size = (1300, 800))
+        
+        run_stage_1_breakout(display_controls = 1, dr = dr, βs = βs, ps = ps)
+        defender_controls = load("figures/stage_1_controls.png")
+        image(fig[1, 1], rotr90(defender_controls), axis = (aspect = DataAspect(), title = "defender"))
+        hidedecorations!(fig.content[1])
+
+        run_stage_1_breakout(display_controls = 2, dr = dr, βs = βs, ps = ps)
+        attacker_controls = load("figures/stage_1_controls.png")
+        image(fig[1, 2], rotr90(attacker_controls), axis = (aspect = DataAspect(), title = "attacker"))
+        hidedecorations!(fig.content[2])
+
+        display_surface(ps, Ks)
+        stage_1_surface = load("figures/stage_1_surface.png")
+        image(fig[2, 2], rotr90(stage_1_surface), axis = (aspect = DataAspect(), title = "stage 1"))
+        hidedecorations!(fig.content[3])
+
+        Axis(fig[2, 1], aspect = DataAspect(), title = "perturbation: $perturbation", backgroundcolor = :gray50)
+        # hidedecorations!(fig.content[4])
+
+        save("figures/all.png", fig)
+
+        # Show the figure
+        fig
+    end
 end
 
 function run_residuals()
@@ -402,6 +455,7 @@ function display_stage_1_costs(costs, ps)
             )
         end
     end
+    save("figures/stage_1_costs.png", fig)
     fig
 end
 
@@ -452,7 +506,7 @@ Output:
 function display_stage_1_costs_controls(costs, controls, ps)
     rs = 0:(1 / (size(costs[1])[1] - 1)):1
     num_worlds = length(ps)
-    fig = Figure(size = (1500, 1000), title = "test")
+    fig = Figure(size = (800, 500), title = "test")
     max_value = 1.0
     axs = [
         [
@@ -617,7 +671,7 @@ Output:
 """
 function display_surface(ps, Ks)
     rs = 0:(1 / (size(Ks)[1] - 1)):1
-    fig = Figure(size = (600, 400))
+    fig = Figure(size = (400, 400))
     ax = Axis3(
         fig[1, 1],
         aspect = (1, 1, 1),
@@ -639,6 +693,8 @@ function display_surface(ps, Ks)
     text!(ax, "$(round(ps[1], digits=2))", position = (0.9, 0.2, 0.01), font = "Bold")
     text!(ax, "$(round(ps[2], digits=2))", position = (0.1, 0.95, 0.01), font = "Bold")
     text!(ax, "$(round(ps[3], digits=2))", position = (0.1, 0.2, 0.01), font = "Bold")
+
+    save("figures/stage_1_surface.png", fig)
     fig
 end
 
