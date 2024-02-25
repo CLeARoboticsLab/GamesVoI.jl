@@ -101,14 +101,17 @@ end
 """
 Temp. script to calculate and plot surfaces for the terms in Stage 1's cost function 
 """
-function run_stage_1_breakout(;display_controls = 0, dr = 0.05, cost_player = 1)
+function run_stage_1_breakout(;display_controls = 0, dr = 0.05, cost_player = 1, βs = nothing,save_prefix="")
     # dr = 0.05
     ps = [1/3, 1/3, 1/3]
-    βs = [
-        [3.0, 2.0, 2.0], 
-        [2.0, 3., 2.0], 
-        [2.0, 2.0, 3.0]
-    ] 
+    
+    if βs == nothing
+        βs = [
+            [6.0, 2.0, 2.0], 
+            [2.0, 3., 2.0], 
+            [2.0, 2.0, 3.0]
+        ] 
+    end
     #### Choose the initial guess for Stage 2 initialization
     primal_guess = (1/3)*ones(30) ## Initialization frorm primes
     initial_guess = vcat(primal_guess,(1/3)*ones(42)) ## concatenate, assume duals are 1/3
@@ -175,7 +178,7 @@ function run_stage_1_breakout(;display_controls = 0, dr = 0.05, cost_player = 1)
                 world_3_misid_controls,
             ],
             ps,
-            save_file="P"*string(display_controls)*"_",
+            save_file=save_prefix*"P"*string(display_controls)*"_",
             cost_player=cost_player
         )
     else
@@ -684,7 +687,7 @@ function J_2(u, v, β)
 
 end
 
-function activate(δ; k=1.0)
+function activate(δ; k=10.0)
     return 1/(1 + exp(-2 * δ * k))
 end
 
