@@ -105,7 +105,7 @@ function run_stage_1_breakout(;display_controls = 0, dr = 0.05)
     # dr = 0.05
     ps = [1/3, 1/3, 1/3]
     βs = [
-        [4.0, 2.0, 2.0], 
+        [3.0, 2.0, 2.0], 
         [2.0, 3., 2.0], 
         [2.0, 2.0, 3.0]
     ] 
@@ -170,7 +170,7 @@ function run_stage_1_breakout(;display_controls = 0, dr = 0.05)
                 world_2_misid_controls,
                 world_3_misid_controls,
             ],
-            ps,
+            ps, save_file="P"*string(display_controls)*"_"
         )
     else
         display_stage_1_costs(
@@ -454,7 +454,7 @@ Input:
 Output: 
     fig: Figure with simplex heatmap
 """
-function display_stage_1_costs_controls(costs, controls, ps)
+function display_stage_1_costs_controls(costs, controls, ps; save_file = "")
     rs = 0:(1 / (size(costs[1])[1] - 1)):1
     num_worlds = length(ps)
     fig = Figure(size = (1500, 1000), title = "test")
@@ -546,7 +546,9 @@ function display_stage_1_costs_controls(costs, controls, ps)
         #     )
         # end
     end
-    save("figures/stage_1_controls.png", fig)
+
+    filename = "figures/"*save_file*"stage_1_controls.png"
+    save(filename, fig)
     fig
 end
 
