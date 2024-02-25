@@ -89,12 +89,19 @@ end
 """
 Temp. script to calculate and plot heatmap of Stage 1 cost function 
 """
-function run_visualization()
+function run_visualization(;βs =nothing, save_name="")
     dr = 0.01
     ps = [1/3, 1 / 3, 1 / 3]
-    βs = [[4.,2.,2.], [2., 3., 2.], [2., 2., 3.]]
+    if βs == nothing
+        βs = [[4.,2.,2.], [2., 3., 2.], [2., 2., 3.]]
+    end
     Ks = calculate_stage_1_costs(ps, βs; dr)
     fig = display_surface(ps, Ks)
+    if save_name !== ""
+        filename = "figures/"*save_name*"stage_1_cost.png"
+        # filename = "figures/"*save*"stage_1_controls.png"
+        save(filename, fig)
+    end
     fig
 end
 
