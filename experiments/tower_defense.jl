@@ -106,6 +106,64 @@ function run_visualization(;βs =nothing, save_name="")
 end
 
 """
+Temp. script to get Stage 2 decision landscape(s)
+(Just perfect information, right now) 
+"""
+function visualize_decisions(world_idx;r=[1.,0.,0.],βs =nothing, save_name="")
+    players = [1,2]
+    dx = 0.01
+    ps = [1/3, 1 / 3, 1 / 3]
+    if βs == nothing
+        βs = [[4.,2.,2.], [2., 3., 2.], [2., 2., 3.]]
+    end
+    r = [1.,0.,0.]
+    xs = 0:dx:1    
+    decision_landscapes = get_stage2_landscape(ps, βs, r, world_idx; dx = 0.01, players = players, initial_guess = nothing)
+    
+    ylims = [[0.01,1],[-1.,0.]]
+
+    fig = Figure(size = (1500, 1000), title = "test")
+    axs = [
+            Axis3(
+                fig[1,pp],
+                aspect = (1, 1, 1),
+                perspectiveness = 0.5,
+                elevation = pi / 5,
+                azimuth = -π * (1 / 2 + 1 / 4),
+                zgridcolor = :grey,
+                ygridcolor = :grey,
+                xgridcolor = :grey;
+                xlabel = "x₁",
+                ylabel = "x₂",
+                zlabel = "Cost",
+                title = "World $world_idx, Signal $world_idx",
+                limits = (nothing, nothing, ylims[players[pp]]),
+            ) for pp in 1:length(players)
+        ]
+    for (pp, pl) in enumerate(players)
+        hmap = surface!(
+            axs[pp],
+            xs,
+            xs,
+            decision_landscapes[:,:,pp],
+            colormap = :viridis,
+            colorrange = (0, 1),
+        )
+        # text!(axs[world_idx], "$(round(ps[1], digits=2))", position = (0.9, 0.4, cost_min), font = "Bold")
+        # text!(axs[world_idx], "$(round(ps[2], digits=2))", position = (0.1, 0.95, cost_min), font = "Bold")
+        # text!(axs[world_idx], "$(round(ps[3], digits=2))", position = (0.2, 0.1, cost_min), font = "Bold")
+
+    end
+
+    if save_name !== ""
+        filename = "figures/"*save_name*"stage_2_decision_landscapes.png"
+        # filename = "figures/"*save*"stage_1_controls.png"
+        save(filename, fig)
+    end
+    fig
+end
+
+"""
 Temp. script to calculate and plot surfaces for the terms in Stage 1's cost function 
 """
 function run_stage_1_breakout(;display_controls = 0, dr = 0.05, cost_player = 1, βs = nothing,save_prefix="")
@@ -337,6 +395,65 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 
     end
 
 end
+
+"""
+Get the decision landscape for one or both players from Stage 2
+"""
+
+function get_stage2_landscape(ps, βs, r, world_idx; dx = 0.05, players = [1,2], initial_guess = nothing)
+    @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
+    @assert sum(r) ≈ 1.0 "Scout allocation r must be a probability distribution"
+    game, _ = build_stage_2(ps, βs)
+    xs = 0:dx:1
+    num_worlds = length(ps)
+    costs = NaN * ones(Float64, Int(1 / dx + 1), Int(1 / dx + 1),length(players))
+    if isnothing(initial_guess)
+        initial_guess = (1/3)*ones(total_dim(game))
+    end
+
+
+    # Js = []
+    # for pl in players
+    #     push!(Js,pl == 2 ? J_2 : J_1)
+    # end
+    
+    xnash = compute_stage_2(r, ps, βs, game, initial_guess=initial_guess)
+    xnash_P1 = xnash[Block(world_idx + 1)]
+    xnash_P2 = xnash[Block(world_idx + 2 * num_worlds + 1)]
+
+    for (i, x1) in enumerate(xs)
+        for (j, x2) in enumerate(xs)
+            if x1 + x2 > 1
+                continue
+            end
+            x3 = 1 - x1 - x2
+            xnew = [x1, x2, x3]
+            
+            for (k, pl) in enumerate(players)
+                cost = pl == 2 ? J_2(xnash_P1,xnew,βs[world_idx]) : J_1(xnew, xnash_P2,βs[world_idx])
+                costs[i,j,k] = cost
+            end
+        end
+    end
+
+    for (k, pl) in enumerate(players)
+        maxormin = pl == 2 ? minimum : maximum
+        value =
+        maxormin(
+            filter(
+                !isnan,
+                vcat(costs[:,:,k]),
+            ),
+        )
+        value = (-1)^(pl+1)*value
+        costs[:,:,k] = [isnan(c) ? NaN : c / value for c in costs[:,:,k]]
+    end
+
+    
+    return costs
+
+end
+
 
 """
 Display surface of Stage 1's objective function. Assumes number of worlds is 3.
