@@ -3,7 +3,7 @@ module scout_visuals
 using GamesVoI
 using GLMakie
 using LinearAlgebra
-using JSON3
+using JSON3, FileIO
 include("tower_defense.jl")
 
 Makie.inline!(false)
@@ -475,11 +475,15 @@ on(menu.selection) do x
         v_west[] = round.(b_array_obs_f_block(10), digits=2)[3]
     end
 end
+# Plot
+##
 defender_triangle_north = @lift Point2f[(1 - $u_north, 0), (1 + $u_north, 0), (1, 1 * $u_north)]
 enemy_triangle_north = @lift Point2f[(1 - $v_north, 2), (1 + $v_north, 2), (1, 2 - (1 * $v_north))]
-poly!(ax_north, defender_triangle_north, color = (:orange, opacity))
-poly!(ax_north, enemy_triangle_north, color = (:red, opacity))
+stage2_map = load("./experiments/stage2_map.jpg")
+hidedecorations!(ax_north)
+image!(ax_north, stage2_map)
 
+##
 defender_triangle_east = @lift Point2f[(0, 1 - $u_east * 1), (0, 1 + 1 * $u_east), (1 * $u_east, 1)]
 enemy_triangle_east = @lift Point2f[(2, 1 - $v_east * 1), (2, 1 + 1 * $v_east), (2 - (1 * $v_east), 1)]
 poly!(ax_east, defender_triangle_east, color = (:orange, opacity))
