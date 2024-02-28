@@ -16,7 +16,9 @@ using GLMakie:
     image,
     DataAspect,
     rotr90,
-    hidedecorations!
+    hidedecorations!,
+    record, 
+    empty!
 using FileIO
 
 using Infiltrator
@@ -104,9 +106,14 @@ end
 Temp. script to calculate and plot heatmap of Stage 1 cost function 
 """
 function run_visualization()
-    dr = 0.01
+    dr = 0.05
     ps = [1/3, 1 / 3, 1 / 3]
-    βs = [[2, 1, 1], [1, 2, 1], [1, 1, 2]]
+    s = 3.0
+    βs = [
+        [3.0, 2.0, 2.0], 
+        [2.0, 3.0, 2.0], 
+        [2.0, 2.0, 3.0]
+    ]
     Ks = calculate_stage_1_costs(ps, βs; dr)
     fig = display_surface(ps, Ks)
     fig
@@ -115,14 +122,16 @@ end
 """
 Temp. script to calculate and plot surfaces for the terms in Stage 1's cost function 
 """
-function run_stage_1_breakout(;display_controls = 0, dr = 0.05)
-    # dr = 0.05
-    ps = [1/3, 1/3, 1/3]
+function run_stage_1_breakout(;
+    display_controls = 0, 
+    dr = 0.05,
     βs = [
-        [2.1, 2.0, 2.0], 
-        [2.0, 2.1, 2.0], 
-        [2.0, 2.0, 2.1]
-    ] 
+        [3.0, 2.0, 2.0], 
+        [2.0, 3.0, 2.0], 
+        [2.0, 2.0, 3.0]
+    ],
+    ps = [1/3, 1/3, 1/3],
+)
 
     if (display_controls in [1,2])
         world_1_misid_costs, world_1_misid_controls = calculate_misid_costs(ps, βs, 1; dr, return_controls=display_controls)
@@ -180,7 +189,7 @@ function run_stage_1_breakout(;display_controls = 0, dr = 0.05)
                 world_2_misid_controls,
                 world_3_misid_controls,
             ],
-            ps,
+            ps;
         )
     else
         fig = display_stage_1_costs(
@@ -198,13 +207,14 @@ function run_stage_1_breakout(;display_controls = 0, dr = 0.05)
     return fig
 end
 
-function run_sweep(perturbations; dr = 0.05)
+function run_sweep(perturbations, k, perturbation_type; dr = 0.05)
     ps = [1/3, 1/3, 1/3]
+    fig = Figure(size = (1300, 800))
     for perturbation in perturbations
         βs = [
                 [3.0 + perturbation, 2.0, 2.0], 
-                [2.0, 3.0 + perturbation, 2.0], 
-                [2.0, 2.0, 3.0 + perturbation]
+                [2.0, 3.0, 2.0], 
+                [2.0, 2.0, 3.0]
             ]
         Ks = calculate_stage_1_costs(ps, βs; dr)
         
@@ -226,10 +236,10 @@ function run_sweep(perturbations; dr = 0.05)
         image(fig[2, 2], rotr90(stage_1_surface), axis = (aspect = DataAspect(), title = "stage 1"))
         hidedecorations!(fig.content[3])
 
-        Axis(fig[2, 1], aspect = DataAspect(), title = "perturbation: $perturbation", backgroundcolor = :gray50)
+        Axis(fig[2, 1], aspect = DataAspect(), title = perturbation_type * " \n perturbation: $perturbation \n k = $k", backgroundcolor = :gray50)
         # hidedecorations!(fig.content[4])
 
-        save("figures/all.png", fig)
+        save("figures/sweep/sweep_$(perturbation_type)_s$(perturbation)_k$(k).png", fig)
 
         # Show the figure
         fig
@@ -245,7 +255,7 @@ function run_residuals()
         [2.0, 2.0, 4.0]
     ] 
     world_1_residuals = calculate_residuals(ps, βs, 1; dr)
-    world_2_residuals = calculate_residuals(ps, βs, 2; dr)
+    world_2_residuals = calculate_residuals(ps, βs, 2; dr)  
     world_3_residuals = calculate_residuals(ps, βs, 3; dr)
 
     display_residuals(
@@ -719,10 +729,10 @@ Attacker cost function
 β: vector containing P2's (attacker) preference parameters for each world.
 """
 function J_2(u, v, β)
-    # -sum([β[ii]^(v[ii] - u[ii]) for ii in eachindex(β)])
     δ = [β[ii]*v[ii] - u[ii] for ii in eachindex(β)]
     -sum([activate(δ[j])*(β[j]*v[j]-u[j])^2 for j in eachindex(β)])
-
+    # δ = [v[ii] - u[ii] for ii in eachindex(β)]
+    # -sum([activate(δ[j])*β[j]*δ[j]^2 for j in eachindex(β)])
 end
 
 function activate(δ; k=10.0)
@@ -865,7 +875,7 @@ Input:
 Output: 
     x: decision variables of Stage 2 given r. BlockedArray with a block per player
 """
-function compute_stage_2(r, ps, βs, game; initial_guess = nothing, verbose = false, return_residual = false)
+    function compute_stage_2(r, ps, βs, game; initial_guess = nothing, verbose = false, return_residual = false)
     n = length(ps) # assume n_signals = n_worlds + 1
     n_players = 1 + n^2
     var_dim = n # TODO: Change this to be more general
