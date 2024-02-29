@@ -258,18 +258,9 @@ fig = Figure()
 # Add axis for each direction
 ax_north = Axis(fig[1,2],
     # borders
-    aspect = ax_aspect, limits = ax_limits,
+    aspect = DataAspect(),
     # title
-    title = "North",
-    titlegap = ax_titlegap, titlesize = ax_titlesize,
-    # x-axis
-    xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
-    xticklabelsize = ax_xticklabelsize,
-    xticks = ax_xticks, xticksize = ax_xticksize,
-    # y-axis
-    yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
-    yticklabelpad = ax_yticklabelpad,
-    yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
+    title = "North"
 )
 ax_west = Axis(fig[2,1],
     # borders
@@ -479,10 +470,13 @@ end
 ##
 defender_triangle_north = @lift Point2f[(1 - $u_north, 0), (1 + $u_north, 0), (1, 1 * $u_north)]
 enemy_triangle_north = @lift Point2f[(1 - $v_north, 2), (1 + $v_north, 2), (1, 2 - (1 * $v_north))]
-stage2_map = load("./experiments/stage2_map.jpg")
+stage2_map = load("./experiments/stage2_map.jpg") #832x1132
 hidedecorations!(ax_north)
-image!(ax_north, stage2_map)
-
+image!(ax_north, rotr90(stage2_map))
+# Suppose u_north = 3, v_north = 4
+scatter!(ax_north, Observable([Point2f(567,550), Point2f(587,550)]), marker = :rect, markersize = 10, color = :blue)
+scatter!(ax_north, Point2f(567,650), marker = :dtriangle, markersize = 10, color = :red)
+# Main.@infiltrate
 ##
 defender_triangle_east = @lift Point2f[(0, 1 - $u_east * 1), (0, 1 + 1 * $u_east), (1 * $u_east, 1)]
 enemy_triangle_east = @lift Point2f[(2, 1 - $v_east * 1), (2, 1 + 1 * $v_east), (2 - (1 * $v_east), 1)]
