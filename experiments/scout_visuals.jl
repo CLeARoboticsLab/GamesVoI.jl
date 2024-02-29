@@ -212,22 +212,20 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     display(fig, fullscreen = true)
 end
 
-function demo_stage2(;use_file=true)
+function demo_stage2(;use_file=true, attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]])
     save_file = nothing
     if use_file
         save_file = JSON3.read(open("./experiments/data.tmp", "r"), Dict{String, Vector{Float64}})
         println("read file")
+    else
+        println("warning: save file not found, please run scout_visuals.compute_all_r_save_to_file()")
     end
     # Game Parameters
-        attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
+        # attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
         num_worlds = 3
         prior_range_step = 0.01
-        prior_range_step_precision = 1
         prior_range = 0.01:prior_range_step:1
-        save_file_name = "precomputed_r.txt"
-        save_precision = 4
         K = 100
-        num_unit_scaling_factor = 20
 
 # Axis parameters
     # borders
@@ -256,44 +254,57 @@ function demo_stage2(;use_file=true)
 fig = Figure()
 
 # Add axis for each direction
-ax_north = Axis(fig[1,2],
-    # borders
-    aspect = DataAspect(),
-    # title
-    title = "North"
-)
-ax_west = Axis(fig[2,1],
-    # borders
-    aspect = ax_aspect, limits = ax_limits,
-    # title
-    title = "West",
-    titlegap = ax_titlegap, titlesize = ax_titlesize,
-    # x-axis
-    xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
-    xticklabelsize = ax_xticklabelsize,
-    xticks = ax_xticks, xticksize = ax_xticksize,
-    # y-axis
-    yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
-    yticklabelpad = ax_yticklabelpad,
-    yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
-)
-ax_east = Axis(fig[2,3],
-    # borders
-    aspect = ax_aspect, limits = ax_limits,
-    # title
-    title = "East",
-    titlegap = ax_titlegap, titlesize = ax_titlesize,
-    # x-axis
-    xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
-    xticklabelsize = ax_xticklabelsize,
-    xticks = ax_xticks, xticksize = ax_xticksize,
-    # y-axis
-    yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
-    yticklabelpad = ax_yticklabelpad,
-    yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
-)
-
-ax_simplex = Axis3(fig[2,2], aspect = (1,1,1), 
+# ax_north = Axis(fig[1,2],
+#     # borders
+#     aspect = ax_aspect, limits = ax_limits,
+#     # title
+#     title = "North",
+#     titlegap = ax_titlegap, titlesize = ax_titlesize,
+#     # x-axis
+#     xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
+#     xticklabelsize = ax_xticklabelsize,
+#     xticks = ax_xticks, xticksize = ax_xticksize,
+#     # y-axis
+#     yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
+#     yticklabelpad = ax_yticklabelpad,
+#     yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
+# )
+# ax_west = Axis(fig[2,1],
+#     # borders
+#     aspect = ax_aspect, limits = ax_limits,
+#     # title
+#     title = "West",
+#     titlegap = ax_titlegap, titlesize = ax_titlesize,
+#     # x-axis
+#     xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
+#     xticklabelsize = ax_xticklabelsize,
+#     xticks = ax_xticks, xticksize = ax_xticksize,
+#     # y-axis
+#     yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
+#     yticklabelpad = ax_yticklabelpad,
+#     yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
+# )
+# ax_east = Axis(fig[2,3],
+#     # borders
+#     aspect = ax_aspect, limits = ax_limits,
+#     # title
+#     title = "East",
+#     titlegap = ax_titlegap, titlesize = ax_titlesize,
+#     # x-axis
+#     xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
+#     xticklabelsize = ax_xticklabelsize,
+#     xticks = ax_xticks, xticksize = ax_xticksize,
+#     # y-axis
+#     yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
+#     yticklabelpad = ax_yticklabelpad,
+#     yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
+# )
+world_signal_pairs = [(1, 0), (2, 0), (3, 0), (1, 1), (2, 2), (3, 3)]
+axes = [Axis(fig[2 ? x[2] != 0 : 1, x[1]], aspect = DataAspect(), title= ("World $(i), Signal $(j)", x[1], x[2])) for x in world_signal_pairs]
+for ax in axes
+    hidedecorations!(ax)
+end
+ax_simplex = Axis3(fig[1,1], aspect = (1,1,1), 
     limits = ((0.0, 1.0, 0.0, 1.0, 0.0, 1.1)),
     xreversed = true, 
     yreversed = true, 
@@ -302,13 +313,13 @@ ax_simplex = Axis3(fig[2,2], aspect = (1,1,1),
     zlabel = "",
 )
 
-hidedecorations!(ax_north)
-hidedecorations!(ax_east)
-hidedecorations!(ax_west)
+# hidedecorations!(ax_north)
+# hidedecorations!(ax_east)
+# hidedecorations!(ax_west)
 
 # Create sliders
 sg = SliderGrid(
-    fig[3, 2],
+    fig[2, 1],
     (label = "prior_north", range = prior_range, format = x-> "", startvalue = 1.0), # z
     (label = "prior_east", range = prior_range, format = x-> "", startvalue = 1.0), # y
     (label = "prior_west", range = prior_range, format = x-> "", startvalue = 1.0) # x
@@ -339,10 +350,10 @@ scout_north, scout_east, scout_west = [lift((x,i)->x[i], observable_r.observable
 
 
 # Display scout allocation as a text on the Figure
-text_directions = [lift((x) -> "$(round(Int, x*K))%", scout) for scout in [scout_north, scout_east, scout_west]]
-Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight = false)
-Label(fig[2,3], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
-Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
+# text_directions = [lift((x) -> "$(round(Int, x*K))%", scout) for scout in [scout_north, scout_east, scout_west]]
+# Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight = false)
+# Label(fig[2,3], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
+# Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
 
 # Main.@infiltrate
 menu = Menu(fig[0,1], options = zip(["Signal 0 World 1", "Signal 0 World 2", "Signal 0 World 3", "Signal 1 World 1", "Signal 2 World 2", "Signal 3 World 3"],
