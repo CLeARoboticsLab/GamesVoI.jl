@@ -200,17 +200,22 @@ function demo_stage2(;use_file=true, attacker_preference = [[0.9; 0.05; 0.05], [
         prior_range = 0.01:prior_range_step:1
 
 # Initialize plot
-fig = Figure(figure_padding = 0)
-# rowgap!(fig.layout, 0)
+fig = Figure(figure_padding = 2)
+rowgap!(fig.layout, 0)
 #TODO: fix row white space
 world_signal_pairs = [(1, 0), (2, 0), (3, 0), (1, 1), (2, 2), (3, 3)]
 axes = [Axis(fig[x[2] != 0 ? 2 : 1, x[1] + 1], aspect = DataAspect(), 
-    title= "World $(x[1]), Signal $(x[2])", titlesize = 40, titlegap = 0, 
-    tellheight = false) for x in world_signal_pairs]
+    title= L"\omega_{%$(x[1])} \enspace \sigma_{%$(x[2])}", titlesize = 30, titlegap = 3)
+    for x in world_signal_pairs]
 for ax in axes
     hidedecorations!(ax)
     # rowgap!(ax.GridLayout(), 5)
 end
+Label(fig[1,5], "", fontsize = 1)
+rowsize!(fig.layout, 1, Aspect(1, 0.7))
+rowsize!(fig.layout, 2, Aspect(1, 0.7))
+# resize_to_layout!(fig)
+
 ax_simplex = Axis3(fig[1,1], aspect = (1,1,1), 
     limits = ((0.0, 1.0, 0.0, 1.0, 0.0, 1.1)),
     xreversed = true, 
@@ -223,9 +228,9 @@ ax_simplex = Axis3(fig[1,1], aspect = (1,1,1),
 # Create sliders
 sg = SliderGrid(
     fig[2, 1],
-    (label = "prior_north", range = prior_range, format = x-> "", startvalue = 1.0), # z
-    (label = "prior_east", range = prior_range, format = x-> "", startvalue = 1.0), # y
-    (label = "prior_west", range = prior_range, format = x-> "", startvalue = 1.0), # x
+    (label = L"p(\omega_1)", range = prior_range, format = x-> "", startvalue = 1.0), # z
+    (label = L"p(\omega_2)", range = prior_range, format = x-> "", startvalue = 1.0), # y
+    (label = L"p(\omega_3)", range = prior_range, format = x-> "", startvalue = 1.0), # x
     tellheight = false,
 )
 observable_prior_sliders = [s.value for s in sg.sliders]
@@ -240,7 +245,7 @@ end
 
 # p₁ : west, p₂ : east, p₃ : north
 p1, p2, p3 = [lift((x,i)->x[i], normalized_observable_p, idx) for idx in 1:num_worlds]
-scatter!(ax_simplex, p3, p2, p1 ; markersize = 15, color = (:red, .75))
+scatter!(ax_simplex, p3, p2, p1 ; markersize = 15, color = (:red, .75), label=L"\mathbf{p}(\omega)")
 
 # Solve for scout_allocation, r 
 observable_r = on(normalized_observable_p) do x
@@ -251,8 +256,8 @@ observable_r = on(normalized_observable_p) do x
     end
 end
 scout_north, scout_east, scout_west = [lift((x,i)->x[i], observable_r.observable, idx) for idx in 1:num_worlds]
-scatter!(ax_simplex, scout_north, scout_east, scout_west ; markersize = 15, color = (:green, .75))
-
+scatter!(ax_simplex, scout_north, scout_east, scout_west ; markersize = 15, color = (:green, .75), label=L"\mathbf{r}")
+axislegend()
 
 game = lift((x) -> build_stage_2(x, attacker_preference), normalized_observable_p)
 b_array = lift((r, p, game) -> compute_stage_2(r, p, attacker_preference, game[1]), 
@@ -303,7 +308,7 @@ b_east = 250
 point_positions_east = [(a_east, b_east),               (a_east, increment + b_east),        (a_east, -increment + b_east),         (a_east, 2increment + b_east),        (a_east, -2increment + b_east),
                         (a_east - increment, b_east), (a_east - increment, b_east + top_increment), (a_east - increment, b_east - top_increment), (a_east - increment, b_east + 2top_increment), (a_east - increment, b_east - 2top_increment)]
 
-defender_size = (30, 15)
+defender_size = (25, 10)
 atker_size = 15
 for (idx, world_signal) in enumerate(world_signal_pairs)
     # North
@@ -339,7 +344,7 @@ for (idx, world_signal) in enumerate(world_signal_pairs)
     scatter!(axes[idx], west_defenders_points, marker = :rect, markersize = reverse(defender_size), color = :blue)
     scatter!(axes[idx], west_atker_points, marker = :ltriangle, markersize = atker_size, color = :red)
 end
-# trim!(fig.layout)
+trim!(fig.layout)
 display(fig, fullscreen = true)
 end
 
