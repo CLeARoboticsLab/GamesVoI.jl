@@ -251,58 +251,16 @@ function demo_stage2(;use_file=true, attacker_preference = [[0.9; 0.05; 0.05], [
     opacity = 0.5
 
 # Initialize plot
-fig = Figure()
+fig = Figure(figure_padding = 0)
 
-# Add axis for each direction
-# ax_north = Axis(fig[1,2],
-#     # borders
-#     aspect = ax_aspect, limits = ax_limits,
-#     # title
-#     title = "North",
-#     titlegap = ax_titlegap, titlesize = ax_titlesize,
-#     # x-axis
-#     xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
-#     xticklabelsize = ax_xticklabelsize,
-#     xticks = ax_xticks, xticksize = ax_xticksize,
-#     # y-axis
-#     yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
-#     yticklabelpad = ax_yticklabelpad,
-#     yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
-# )
-# ax_west = Axis(fig[2,1],
-#     # borders
-#     aspect = ax_aspect, limits = ax_limits,
-#     # title
-#     title = "West",
-#     titlegap = ax_titlegap, titlesize = ax_titlesize,
-#     # x-axis
-#     xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
-#     xticklabelsize = ax_xticklabelsize,
-#     xticks = ax_xticks, xticksize = ax_xticksize,
-#     # y-axis
-#     yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
-#     yticklabelpad = ax_yticklabelpad,
-#     yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
-# )
-# ax_east = Axis(fig[2,3],
-#     # borders
-#     aspect = ax_aspect, limits = ax_limits,
-#     # title
-#     title = "East",
-#     titlegap = ax_titlegap, titlesize = ax_titlesize,
-#     # x-axis
-#     xautolimitmargin = ax_xautolimitmargin, xgridwidth = ax_xgridwidth, 
-#     xticklabelsize = ax_xticklabelsize,
-#     xticks = ax_xticks, xticksize = ax_xticksize,
-#     # y-axis
-#     yautolimitmargin = ax_yautolimitmargin, ygridwidth = ax_ygridwidth,
-#     yticklabelpad = ax_yticklabelpad,
-#     yticklabelsize = ax_yticklabelsize, yticks = ax_yticks, yticksize = ax_yticksize
-# )
+#TODO: fix row white space
 world_signal_pairs = [(1, 0), (2, 0), (3, 0), (1, 1), (2, 2), (3, 3)]
-axes = [Axis(fig[2 ? x[2] != 0 : 1, x[1]], aspect = DataAspect(), title= ("World $(i), Signal $(j)", x[1], x[2])) for x in world_signal_pairs]
+axes = [Axis(fig[x[2] != 0 ? 2 : 1, x[1] + 1], aspect = DataAspect(), 
+    title= "World $(x[1]), Signal $(x[2])", titlesize = 40, titlegap = 0, 
+    tellheight = false, tellwidth = false) for x in world_signal_pairs]
 for ax in axes
     hidedecorations!(ax)
+    # rowgap!(ax.GridLayout(), 5)
 end
 ax_simplex = Axis3(fig[1,1], aspect = (1,1,1), 
     limits = ((0.0, 1.0, 0.0, 1.0, 0.0, 1.1)),
@@ -311,18 +269,17 @@ ax_simplex = Axis3(fig[1,1], aspect = (1,1,1),
     xlabel = "",
     ylabel = "",
     zlabel = "",
+    tellheight = false,
+    tellwidth = false
 )
-
-# hidedecorations!(ax_north)
-# hidedecorations!(ax_east)
-# hidedecorations!(ax_west)
-
 # Create sliders
 sg = SliderGrid(
     fig[2, 1],
     (label = "prior_north", range = prior_range, format = x-> "", startvalue = 1.0), # z
     (label = "prior_east", range = prior_range, format = x-> "", startvalue = 1.0), # y
-    (label = "prior_west", range = prior_range, format = x-> "", startvalue = 1.0) # x
+    (label = "prior_west", range = prior_range, format = x-> "", startvalue = 1.0), # x
+    tellheight = false,
+    tellwidth = false
 )
 observable_prior_sliders = [s.value for s in sg.sliders]
 
@@ -349,16 +306,6 @@ end
 scout_north, scout_east, scout_west = [lift((x,i)->x[i], observable_r.observable, idx) for idx in 1:num_worlds]
 
 
-# Display scout allocation as a text on the Figure
-# text_directions = [lift((x) -> "$(round(Int, x*K))%", scout) for scout in [scout_north, scout_east, scout_west]]
-# Label(fig[1,2], text_directions[1], fontsize = 20, tellwidth = false, tellheight = false)
-# Label(fig[2,3], text_directions[2], fontsize = 20, tellwidth = false, tellheight = false)
-# Label(fig[2,1], text_directions[3], fontsize = 20, tellwidth = false, tellheight = false)
-
-# Main.@infiltrate
-menu = Menu(fig[0,1], options = zip(["Signal 0 World 1", "Signal 0 World 2", "Signal 0 World 3", "Signal 1 World 1", "Signal 2 World 2", "Signal 3 World 3"],
-[0, 1, 2, 3, 4 ,5]))
-
 game = lift((x) -> build_stage_2(x, attacker_preference), normalized_observable_p)
 b_array = lift((r, p, game) -> compute_stage_2(r, p, attacker_preference, game[1]), 
     observable_r.observable, normalized_observable_p, game)
@@ -366,138 +313,75 @@ b_array = lift((r, p, game) -> compute_stage_2(r, p, attacker_preference, game[1
 b_array_obs_f = (i, x) -> x[][Block(i)]
 b_array_obs_f_block = (i) -> b_array[][Block(i)]
 
-u_north = Observable(0.0)
-u_east = Observable(0.0)
-u_west = Observable(0.0)
-v_north = Observable(0.0)
-v_east = Observable(0.0)
-v_west = Observable(0.0)
-
-on(b_array) do y
-    x = menu.selection[]
-    if x == 0 #s 0 w 1
-        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(5), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(5), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(5), digits=2)[3]
-    elseif x == 1 #s 0 w 2
-        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(6), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(6), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(6), digits=2)[3]
-    elseif x == 2 #s 0 w 3
-        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(7), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(7), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(7), digits=2)[3]
-    elseif x == 3 #s 1 w 1
-        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(8), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(8), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(8), digits=2)[3]
-    elseif x == 4 #s 2 w 2
-        u_north[] = round.(b_array_obs_f_block(3), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(3), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(3), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(9), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(9), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(9), digits=2)[3]
-    elseif x == 5 #s 3 w 3
-        u_north[] = round.(b_array_obs_f_block(4), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(4), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(4), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(10), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(10), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(10), digits=2)[3]
+function bval2int(defender, attacker)
+    # @Main.infiltrate
+    num_d = round(defender * 10, digits = 0)
+    num_a = round(attacker * 10, digits = 0)
+    if num_a == num_d
+        if attacker > defender
+            if num_a == 10
+                num_d -= 1
+            else
+                num_a += 1
+            end
+        else #attacker < defender
+            if num_d == 10
+                num_a -= 1
+            else
+                num_d += 1
+            end
+        end
     end
+
+    return (Int(num_d), Int(num_a))
 end
 
-on(menu.selection) do x
-    if x == 0 #s 0 w 1
-        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(5), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(5), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(5), digits=2)[3]
-    elseif x == 1
-        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(6), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(6), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(6), digits=2)[3]
-    elseif x == 2
-        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(7), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(7), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(7), digits=2)[3]
-    elseif x == 3
-        u_north[] = round.(b_array_obs_f_block(1), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(1), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(1), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(8), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(8), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(8), digits=2)[3]
-    elseif x == 4
-        u_north[] = round.(b_array_obs_f_block(3), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(3), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(3), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(9), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(9), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(9), digits=2)[3]
-    elseif x == 5
-        u_north[] = round.(b_array_obs_f_block(4), digits=2)[1]
-        u_east[] = round.(b_array_obs_f_block(4), digits=2)[2]
-        u_west[] = round.(b_array_obs_f_block(4), digits=2)[3]
-
-        v_north[] = round.(b_array_obs_f_block(10), digits=2)[1]
-        v_east[] = round.(b_array_obs_f_block(10), digits=2)[2]
-        v_west[] = round.(b_array_obs_f_block(10), digits=2)[3]
-    end
-end
-# Plot
-##
-defender_triangle_north = @lift Point2f[(1 - $u_north, 0), (1 + $u_north, 0), (1, 1 * $u_north)]
-enemy_triangle_north = @lift Point2f[(1 - $v_north, 2), (1 + $v_north, 2), (1, 2 - (1 * $v_north))]
 stage2_map = load("./experiments/stage2_map.jpg") #832x1132
-hidedecorations!(ax_north)
-image!(ax_north, rotr90(stage2_map))
-# Suppose u_north = 3, v_north = 4
-scatter!(ax_north, Observable([Point2f(567,550), Point2f(587,550)]), marker = :rect, markersize = 10, color = :blue)
-scatter!(ax_north, Point2f(567,650), marker = :dtriangle, markersize = 10, color = :red)
-# Main.@infiltrate
-##
-defender_triangle_east = @lift Point2f[(0, 1 - $u_east * 1), (0, 1 + 1 * $u_east), (1 * $u_east, 1)]
-enemy_triangle_east = @lift Point2f[(2, 1 - $v_east * 1), (2, 1 + 1 * $v_east), (2 - (1 * $v_east), 1)]
-poly!(ax_east, defender_triangle_east, color = (:orange, opacity))
-poly!(ax_east, enemy_triangle_east, color = (:red, opacity))
+# hidedecorations!(ax_north)
+for i in axes
+    image!(i, rotr90(stage2_map))
+end
+a_north = 565
+b_north = 600
+increment = 60
+top_increment = 80
+point_positions_north = [(a_north, b_north), (a_north + top_increment,b_north), (a_north - top_increment,b_north), (a_north + 2top_increment, b_north), (a_north - 2top_increment, b_north),
+                        (a_north, b_north - increment), (a_north + increment,b_north - increment), (a_north - increment,b_north - increment), (a_north + 2increment, b_north - increment), (a_north - 2increment, b_north - increment)]
+# North
+north_defenders = @lift bval2int($b_array[Block(1)][1], $b_array[Block(5)][1])[1]
+north_atker = @lift bval2int($b_array[Block(1)][1], $b_array[Block(5)][1])[2]
+@lift println("n def: ", $north_defenders, " atk: ", $north_atker)
+north_defenders_points = @lift [Point2f(x[1], x[2]) for x in point_positions_north[1:$north_defenders]]
+north_atker_points = @lift [Point2f(x[1], x[2] + 150) for x in point_positions_north[1:$north_atker]]
+# @Main.infiltrate
+scatter!(axes[1], north_defenders_points, marker = :rect, markersize = 15, color = :blue)
+scatter!(axes[1], north_atker_points, marker = :dtriangle, markersize = 15, color = :red)
 
-defender_triangle_west = @lift Point2f[(2, 1 - $u_west * 1), (2, 1 + 1 * $u_west), (2 - 1 * $u_west, 1)]
-enemy_triangle_west = @lift Point2f[(0, 1 - $v_west * 1), (0, 1 + 1 * $v_west), (1 * $v_west, 1)]
-poly!(ax_west, defender_triangle_west, color = (:orange, opacity))
-poly!(ax_west, enemy_triangle_west, color = (:red, opacity))
+# East
+a_east = 350
+b_east = 250
+point_positions_east = [(a_east, b_east),               (a_east, increment + b_east),        (a_east, -increment + b_east),         (a_east, 2increment + b_east),        (a_east, -2increment + b_east),
+                        (a_east - increment, b_east), (a_east - increment, b_east + top_increment), (a_east - increment, b_east - top_increment), (a_east - increment, b_east + 2top_increment), (a_east - increment, b_east - 2top_increment)]
+
+east_defenders = @lift bval2int($b_array[Block(1)][2], $b_array[Block(5)][2])[1]
+east_atker = @lift bval2int($b_array[Block(1)][2], $b_array[Block(5)][2])[2]
+@lift println("e def: ", $east_defenders, " atk: ", $east_atker)
+east_defenders_points = @lift [Point2f(x[1], x[2]) for x in point_positions_east[1:$east_defenders]]
+east_atker_points = @lift [Point2f(x[1], x[2] + 150) for x in point_positions_east[1:$east_atker]]
+
+scatter!(axes[1], east_defenders_points, marker = :rect, markersize = 15, color = :blue)
+scatter!(axes[1], east_atker_points, marker = :rtriangle, markersize = 15, color = :red)
+
+# West
+west_defenders = @lift bval2int($b_array[Block(1)][3], $b_array[Block(5)][3])[1]
+west_atker = @lift bval2int($b_array[Block(1)][3], $b_array[Block(5)][3])[2]
+@lift println("w def: ", $west_defenders, " atk: ", $west_atker)
+west_defenders_points = @lift [Point2f(1130 - x[1], x[2]) for x in point_positions_east[1:$west_defenders]]
+west_atker_points = @lift [Point2f(1130 - x[1] + 150, x[2]) for x in point_positions_east[1:$west_atker]]
+
+scatter!(axes[1], west_defenders_points, marker = :rect, markersize = 15, color = :blue)
+scatter!(axes[1], west_atker_points, marker = :ltriangle, markersize = 15, color = :red)
+# # Main.@infiltrate
 
 display(fig, fullscreen = true)
 end
