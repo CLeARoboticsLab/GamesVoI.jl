@@ -8,33 +8,6 @@ include("tower_defense.jl")
 
 Makie.inline!(false)
 
-# Visual parameters
-    # Axis parameters
-        # borders
-        ax_aspect = 1 
-        ax_limits = (0, 2, 0, 2)
-        # title
-        ax_titlegap = 1
-        ax_titlesize = 30
-        # x-axis
-        ax_xautolimitmargin = (0, 0)
-        ax_xgridwidth = 2
-        ax_xticklabelsize = 0
-        ax_xticks = -10:10
-        ax_xticksize = 18
-        # y-axis
-        ax_yautolimitmargin = (0, 0)
-        ax_ygridwidth = 2
-        ax_yticklabelpad = 14
-        ax_yticklabelsize = 0
-        ax_yticks = -10:10
-        ax_yticksize = 18
-
-""" TODO: 
-1. Do visualiation for each given world/signal received by Player 1 
-2. Solve for all different combinations and store them in a "look-up dictionary" so that you dont have to solve the game all the time
-"""
-
 function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]], use_file=false)
 
     save_file = nothing
@@ -214,6 +187,7 @@ end
 
 function demo_stage2(;use_file=true, attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]])
     save_file = nothing
+    
     if use_file
         save_file = JSON3.read(open("./experiments/data.tmp", "r"), Dict{String, Vector{Float64}})
         println("read file")
@@ -221,43 +195,18 @@ function demo_stage2(;use_file=true, attacker_preference = [[0.9; 0.05; 0.05], [
         println("warning: save file not found, please run scout_visuals.compute_all_r_save_to_file()")
     end
     # Game Parameters
-        # attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
         num_worlds = 3
         prior_range_step = 0.01
         prior_range = 0.01:prior_range_step:1
-        K = 100
-
-# Axis parameters
-    # borders
-    ax_aspect = 1 
-    ax_limits = (0, 2, 0, 2)
-    # title
-    ax_titlegap = 1
-    ax_titlesize = 30
-    # x-axis
-    ax_xautolimitmargin = (0, 0)
-    ax_xgridwidth = 2
-    ax_xticklabelsize = 0
-    ax_xticks = -10:10
-    ax_xticksize = 18
-    # y-axis
-    ax_yautolimitmargin = (0, 0)
-    ax_ygridwidth = 2
-    ax_yticklabelpad = 14
-    ax_yticklabelsize = 0
-    ax_yticks = -10:10
-    ax_yticksize = 18
-
-    opacity = 0.5
 
 # Initialize plot
 fig = Figure(figure_padding = 0)
-
+# rowgap!(fig.layout, 0)
 #TODO: fix row white space
 world_signal_pairs = [(1, 0), (2, 0), (3, 0), (1, 1), (2, 2), (3, 3)]
 axes = [Axis(fig[x[2] != 0 ? 2 : 1, x[1] + 1], aspect = DataAspect(), 
     title= "World $(x[1]), Signal $(x[2])", titlesize = 40, titlegap = 0, 
-    tellheight = false, tellwidth = false) for x in world_signal_pairs]
+    tellheight = false) for x in world_signal_pairs]
 for ax in axes
     hidedecorations!(ax)
     # rowgap!(ax.GridLayout(), 5)
@@ -269,8 +218,7 @@ ax_simplex = Axis3(fig[1,1], aspect = (1,1,1),
     xlabel = "",
     ylabel = "",
     zlabel = "",
-    tellheight = false,
-    tellwidth = false
+    tellheight = false
 )
 # Create sliders
 sg = SliderGrid(
@@ -279,7 +227,6 @@ sg = SliderGrid(
     (label = "prior_east", range = prior_range, format = x-> "", startvalue = 1.0), # y
     (label = "prior_west", range = prior_range, format = x-> "", startvalue = 1.0), # x
     tellheight = false,
-    tellwidth = false
 )
 observable_prior_sliders = [s.value for s in sg.sliders]
 
@@ -293,7 +240,7 @@ end
 
 # p₁ : west, p₂ : east, p₃ : north
 p1, p2, p3 = [lift((x,i)->x[i], normalized_observable_p, idx) for idx in 1:num_worlds]
-scatter!(ax_simplex, p3, p2, p1 ; markersize = 15, color = :red)
+scatter!(ax_simplex, p3, p2, p1 ; markersize = 15, color = (:red, .75))
 
 # Solve for scout_allocation, r 
 observable_r = on(normalized_observable_p) do x
@@ -304,6 +251,7 @@ observable_r = on(normalized_observable_p) do x
     end
 end
 scout_north, scout_east, scout_west = [lift((x,i)->x[i], observable_r.observable, idx) for idx in 1:num_worlds]
+scatter!(ax_simplex, scout_north, scout_east, scout_west ; markersize = 15, color = (:green, .75))
 
 
 game = lift((x) -> build_stage_2(x, attacker_preference), normalized_observable_p)
@@ -315,16 +263,18 @@ b_array_obs_f_block = (i) -> b_array[][Block(i)]
 
 function bval2int(defender, attacker)
     # @Main.infiltrate
+    defender = round(defender, digits = 2)
+    attacker = round(attacker, digits = 2)
     num_d = round(defender * 10, digits = 0)
     num_a = round(attacker * 10, digits = 0)
-    if num_a == num_d
+    if num_a == num_d && num_a > 0
         if attacker > defender
             if num_a == 10
                 num_d -= 1
             else
                 num_a += 1
             end
-        else #attacker < defender
+        else #attacker <= defender
             if num_d == 10
                 num_a -= 1
             else
@@ -345,44 +295,51 @@ a_north = 565
 b_north = 600
 increment = 60
 top_increment = 80
-point_positions_north = [(a_north, b_north), (a_north + top_increment,b_north), (a_north - top_increment,b_north), (a_north + 2top_increment, b_north), (a_north - 2top_increment, b_north),
-                        (a_north, b_north - increment), (a_north + increment,b_north - increment), (a_north - increment,b_north - increment), (a_north + 2increment, b_north - increment), (a_north - 2increment, b_north - increment)]
-# North
-north_defenders = @lift bval2int($b_array[Block(1)][1], $b_array[Block(5)][1])[1]
-north_atker = @lift bval2int($b_array[Block(1)][1], $b_array[Block(5)][1])[2]
-@lift println("n def: ", $north_defenders, " atk: ", $north_atker)
-north_defenders_points = @lift [Point2f(x[1], x[2]) for x in point_positions_north[1:$north_defenders]]
-north_atker_points = @lift [Point2f(x[1], x[2] + 150) for x in point_positions_north[1:$north_atker]]
-# @Main.infiltrate
-scatter!(axes[1], north_defenders_points, marker = :rect, markersize = 15, color = :blue)
-scatter!(axes[1], north_atker_points, marker = :dtriangle, markersize = 15, color = :red)
+point_positions_north = [(a_north, b_north - increment), (a_north + increment,b_north - increment), (a_north - increment,b_north - increment), (a_north + 2increment, b_north - increment), (a_north - 2increment, b_north - increment),
+    (a_north, b_north), (a_north + top_increment,b_north), (a_north - top_increment,b_north), (a_north + 2top_increment, b_north), (a_north - 2top_increment, b_north)]
 
-# East
 a_east = 350
 b_east = 250
 point_positions_east = [(a_east, b_east),               (a_east, increment + b_east),        (a_east, -increment + b_east),         (a_east, 2increment + b_east),        (a_east, -2increment + b_east),
                         (a_east - increment, b_east), (a_east - increment, b_east + top_increment), (a_east - increment, b_east - top_increment), (a_east - increment, b_east + 2top_increment), (a_east - increment, b_east - 2top_increment)]
 
-east_defenders = @lift bval2int($b_array[Block(1)][2], $b_array[Block(5)][2])[1]
-east_atker = @lift bval2int($b_array[Block(1)][2], $b_array[Block(5)][2])[2]
-@lift println("e def: ", $east_defenders, " atk: ", $east_atker)
-east_defenders_points = @lift [Point2f(x[1], x[2]) for x in point_positions_east[1:$east_defenders]]
-east_atker_points = @lift [Point2f(x[1], x[2] + 150) for x in point_positions_east[1:$east_atker]]
+defender_size = (30, 15)
+atker_size = 15
+for (idx, world_signal) in enumerate(world_signal_pairs)
+    # North
+    defender_index = world_signal[2] + 1
+    atker_index = (world_signal[2] == 0 ? 4 : 7) + world_signal[1] 
+    north_defenders  = @lift bval2int($b_array[Block(defender_index)][1], $b_array[Block(atker_index)][1])[1]
+    north_atker = @lift bval2int($b_array[Block(defender_index)][1], $b_array[Block(atker_index)][1])[2]
+    # @lift println("n def: ", $north_defenders, " atk: ", $north_atker)
+    north_defenders_points = @lift [Point2f(x[1], x[2]) for x in point_positions_north[1:$north_defenders]]
+    north_atker_points = @lift [Point2f(x[1], x[2] + 150) for x in point_positions_north[1:$north_atker]]
 
-scatter!(axes[1], east_defenders_points, marker = :rect, markersize = 15, color = :blue)
-scatter!(axes[1], east_atker_points, marker = :rtriangle, markersize = 15, color = :red)
+    scatter!(axes[idx], north_defenders_points, marker = :rect, markersize = defender_size, color = :blue)
+    scatter!(axes[idx], north_atker_points, marker = :dtriangle, markersize = atker_size, color = :red)
 
-# West
-west_defenders = @lift bval2int($b_array[Block(1)][3], $b_array[Block(5)][3])[1]
-west_atker = @lift bval2int($b_array[Block(1)][3], $b_array[Block(5)][3])[2]
-@lift println("w def: ", $west_defenders, " atk: ", $west_atker)
-west_defenders_points = @lift [Point2f(1130 - x[1], x[2]) for x in point_positions_east[1:$west_defenders]]
-west_atker_points = @lift [Point2f(1130 - x[1] + 150, x[2]) for x in point_positions_east[1:$west_atker]]
+    # East
 
-scatter!(axes[1], west_defenders_points, marker = :rect, markersize = 15, color = :blue)
-scatter!(axes[1], west_atker_points, marker = :ltriangle, markersize = 15, color = :red)
-# # Main.@infiltrate
+    east_defenders = @lift bval2int($b_array[Block(defender_index)][2], $b_array[Block(atker_index)][2])[1]
+    east_atker = @lift bval2int($b_array[Block(defender_index)][2], $b_array[Block(atker_index)][2])[2]
+    # @lift println("e def: ", $east_defenders, " atk: ", $east_atker)
+    east_defenders_points = @lift [Point2f(x[1], x[2]) for x in point_positions_east[1:$east_defenders]]
+    east_atker_points = @lift [Point2f(x[1] - 150, x[2]) for x in point_positions_east[1:$east_atker]]
 
+    scatter!(axes[idx], east_defenders_points, marker = :rect, markersize = reverse(defender_size), color = :blue)
+    scatter!(axes[idx], east_atker_points, marker = :rtriangle, markersize = atker_size, color = :red)
+
+    # West
+    west_defenders = @lift bval2int($b_array[Block(defender_index)][3], $b_array[Block(atker_index)][3])[1]
+    west_atker = @lift bval2int($b_array[Block(defender_index)][3], $b_array[Block(atker_index)][3])[2]
+    # @lift println("w def: ", $west_defenders, " atk: ", $west_atker)
+    west_defenders_points = @lift [Point2f(1130 - x[1], x[2]) for x in point_positions_east[1:$west_defenders]]
+    west_atker_points = @lift [Point2f(1130 - x[1] + 150, x[2]) for x in point_positions_east[1:$west_atker]]
+
+    scatter!(axes[idx], west_defenders_points, marker = :rect, markersize = reverse(defender_size), color = :blue)
+    scatter!(axes[idx], west_atker_points, marker = :ltriangle, markersize = atker_size, color = :red)
+end
+# trim!(fig.layout)
 display(fig, fullscreen = true)
 end
 
