@@ -83,7 +83,7 @@ Temp. script to calculate and plot heatmap of Stage 1 cost function
 """
 function run_heatmap()
     ps = [1/3, 1/3, 1/3]
-    βs = [[2, 1, 1], [1, 2, 1], [1, 1, 2]]
+    βs = [[2, 1, 1], [1, 2, 1], [1, 1, 2]] 
     Ks = calculate_stage_1_heatmap(ps, βs)
     fig = display_heatmap(ps, Ks)
     fig

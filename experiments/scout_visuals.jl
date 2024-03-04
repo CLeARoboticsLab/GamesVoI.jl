@@ -7,8 +7,9 @@ using JSON3, FileIO
 include("tower_defense.jl")
 
 Makie.inline!(false)
+# TODO: USE [[2, 1, 1], [1, 2, 1], [1, 1, 2]] .+ 1 = [[3, 2, 2], [2, 3, 2], [2, 2, 3]] for recomputation of hashmap
 
-function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]], use_file=false)
+function demo(; attacker_preference = [[3, 2, 2], [2, 3, 2], [2, 2, 3]], use_file=false)
 
     save_file = nothing
     if use_file
@@ -17,7 +18,7 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     end
     
     # Game Parameters
-        attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]]
+        attacker_preference = [[3, 2, 2], [2, 3, 2], [2, 2, 3]]
         num_worlds = 3
         prior_range_step = 0.01
         prior_range_step_precision = 1
@@ -185,7 +186,7 @@ function demo(; attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.
     display(fig, fullscreen = true)
 end
 
-function demo_stage2(;use_file=true, attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]])
+function demo_stage2(;use_file=true, attacker_preference = [[3, 2, 2], [2, 3, 2], [2, 2, 3]])
     save_file = nothing
     
     if use_file
@@ -202,29 +203,36 @@ function demo_stage2(;use_file=true, attacker_preference = [[0.9; 0.05; 0.05], [
 # Initialize plot
 fig = Figure(figure_padding = 2)
 rowgap!(fig.layout, 0)
-#TODO: fix row white space
 world_signal_pairs = [(1, 0), (2, 0), (3, 0), (1, 1), (2, 2), (3, 3)]
 axes = [Axis(fig[x[2] != 0 ? 2 : 1, x[1] + 1], aspect = DataAspect(), 
     title= L"\omega_{%$(x[1])} \enspace \sigma_{%$(x[2])}", titlesize = 30, titlegap = 3)
     for x in world_signal_pairs]
 for ax in axes
     hidedecorations!(ax)
-    # rowgap!(ax.GridLayout(), 5)
 end
 Label(fig[1,5], "", fontsize = 1)
 rowsize!(fig.layout, 1, Aspect(1, 0.7))
 rowsize!(fig.layout, 2, Aspect(1, 0.7))
-# resize_to_layout!(fig)
 
-ax_simplex = Axis3(fig[1,1], aspect = (1,1,1), 
-    limits = ((0.0, 1.0, 0.0, 1.0, 0.0, 1.1)),
-    xreversed = true, 
-    yreversed = true, 
-    xlabel = "",
-    ylabel = "",
-    zlabel = "",
-    tellheight = false
-)
+# 0304: Add scout_allocation figure instead of simplex figure 
+ax_scout = Axis(fig[1,1], aspect = DataAspect(),
+    title=L"\mathbf{r}", titlesize = 30, titlegap = 3)
+hidedecorations!(ax_scout)
+
+# 0304: Remove Simplex figure for now 
+# ax_simplex = Axis3(fig[1,1], aspect = (1,1,1), 
+#     limits = ((0.0, 1.0, 0.0, 1.0, 0.0, 1.1)),
+#     xreversed = true, 
+#     yreversed = true, 
+#     xlabel = "",
+#     ylabel = "",
+#     zlabel = "",
+#     tellheight = false
+# )
+
+# Plot priors on the Simplex
+# scatterlines!(ax_simplex, [1;0;0;1], [0;1;0;0], [0;0;1;0], markersize = 15)
+
 # Create sliders
 sg = SliderGrid(
     fig[2, 1],
@@ -235,17 +243,13 @@ sg = SliderGrid(
 )
 observable_prior_sliders = [s.value for s in sg.sliders]
 
-# Plot priors on the Simplex
-scatterlines!(ax_simplex, [1;0;0;1], [0;1;0;0], [0;0;1;0], markersize = 15)
-
+# p₁ : west, p₂ : east, p₃ : north
 # Normalize priors
 normalized_observable_p = lift(observable_prior_sliders...) do a, b, c
     round.(normalize([a,b,c], 1), digits = 2)
 end
-
-# p₁ : west, p₂ : east, p₃ : north
 p1, p2, p3 = [lift((x,i)->x[i], normalized_observable_p, idx) for idx in 1:num_worlds]
-scatter!(ax_simplex, p3, p2, p1 ; markersize = 15, color = (:red, .75), label=L"\mathbf{p}(\omega)")
+# scatter!(ax_simplex, p3, p2, p1 ; markersize = 15, color = (:red, .75), label=L"\mathbf{p}(\omega)")
 
 # Solve for scout_allocation, r 
 observable_r = on(normalized_observable_p) do x
@@ -256,8 +260,8 @@ observable_r = on(normalized_observable_p) do x
     end
 end
 scout_north, scout_east, scout_west = [lift((x,i)->x[i], observable_r.observable, idx) for idx in 1:num_worlds]
-scatter!(ax_simplex, scout_north, scout_east, scout_west ; markersize = 15, color = (:green, .75), label=L"\mathbf{r}")
-axislegend()
+# scatter!(ax_simplex, scout_north, scout_east, scout_west ; markersize = 15, color = (:green, .75), label=L"\mathbf{r}")
+# axislegend()
 
 game = lift((x) -> build_stage_2(x, attacker_preference), normalized_observable_p)
 b_array = lift((r, p, game) -> compute_stage_2(r, p, attacker_preference, game[1]), 
@@ -267,7 +271,6 @@ b_array_obs_f = (i, x) -> x[][Block(i)]
 b_array_obs_f_block = (i) -> b_array[][Block(i)]
 
 function bval2int(defender, attacker)
-    # @Main.infiltrate
     defender = round(defender, digits = 2)
     attacker = round(attacker, digits = 2)
     num_d = round(defender * 10, digits = 0)
@@ -291,8 +294,10 @@ function bval2int(defender, attacker)
     return (Int(num_d), Int(num_a))
 end
 
+# Begin plotting on the map
 stage2_map = load("./experiments/stage2_map.jpg") #832x1132
-# hidedecorations!(ax_north)
+
+# Set stage for defender and attacker
 for i in axes
     image!(i, rotr90(stage2_map))
 end
@@ -310,6 +315,31 @@ point_positions_east = [(a_east, b_east),               (a_east, increment + b_e
 
 defender_size = (25, 10)
 atker_size = 15
+
+# Plot scout allocation (Stage 1)
+image!(ax_scout, rotr90(stage2_map))
+north_scout = @lift round(Int, $scout_north * 10)
+east_scout = @lift round(Int, $scout_east * 10)
+west_scout = @lift round(Int, $scout_west * 10)
+scout_size = 15
+
+# North
+north_scout_points = @lift [Point2f(x[1], x[2]) for x in point_positions_north[1:$north_scout]]
+scatter!(ax_scout, north_scout_points, markersize = scout_size, color = :green)
+@lift println("n scout: ", $north_scout, " n scout_dec: ", $scout_north)
+
+# East
+east_scout_points = @lift [Point2f(x[1], x[2]) for x in point_positions_east[1:$east_scout]]
+scatter!(ax_scout, east_scout_points, markersize = scout_size, color = :green)
+@lift println("e scout: ", $east_scout, " e scout_dec: ", $scout_east)
+
+# West
+west_scout_points = @lift [Point2f(1130 - x[1], x[2]) for x in point_positions_east[1:$west_scout]]
+scatter!(ax_scout, west_scout_points, markersize = scout_size, color = :green)
+@lift println("w scout: ", $west_scout, " w scout_dec: ", $scout_west)
+
+
+# Plot defender and attack allocation (Stage 2)
 for (idx, world_signal) in enumerate(world_signal_pairs)
     # North
     defender_index = world_signal[2] + 1
@@ -324,7 +354,6 @@ for (idx, world_signal) in enumerate(world_signal_pairs)
     scatter!(axes[idx], north_atker_points, marker = :dtriangle, markersize = atker_size, color = :red)
 
     # East
-
     east_defenders = @lift bval2int($b_array[Block(defender_index)][2], $b_array[Block(atker_index)][2])[1]
     east_atker = @lift bval2int($b_array[Block(defender_index)][2], $b_array[Block(atker_index)][2])[2]
     # @lift println("e def: ", $east_defenders, " atk: ", $east_atker)
@@ -349,7 +378,7 @@ display(fig, fullscreen = true)
 end
 
 function compute_all_r_save_to_file(;_prior_range = 0.01:.1:1.1,
-     attacker_preference = [[0.9; 0.05; 0.05], [0.05, 0.9, 0.05], [0.05, 0.05, 0.9]],
+     attacker_preference = [[3, 2, 2], [2, 3, 2], [2, 2, 3]],
      save_file_name = "./experiments/data.tmp")
     prior_range = round.(_prior_range, digits=1)
     # save_file = open(save_file_name, "w+")
