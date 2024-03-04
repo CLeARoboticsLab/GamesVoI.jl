@@ -291,7 +291,8 @@ end
 
 function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls=0)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
-    game, _ = build_stage_2(ps, βs)
+    complete_info_game = build_complete_info_game()
+    incomplete_info_game = build_incomplete_info_game(ps, βs)
     rs = 0:dr:1
     num_worlds = length(ps)
     id_costs = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1))
@@ -311,7 +312,7 @@ function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls=0)
             end
             r3 = 1 - r1 - r2
             r = [r1, r2, r3]
-            x = compute_stage_2(r, ps, βs, game)
+            x = compute_stage_2(r, ps, βs, complete_info_game, incomplete_info_game)
             id_cost =
                 r[world_idx] *
                 ps[world_idx] *
@@ -337,7 +338,8 @@ end
 
 function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 0)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
-    game, _ = build_stage_2(ps, βs)
+    complete_info_game = build_complete_info_game()
+    incomplete_info_game = build_incomplete_info_game(ps, βs)
     rs = 0:dr:1
     num_worlds = length(ps)
     misid_costs = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1))
@@ -357,7 +359,7 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 
             end
             r3 = 1 - r1 - r2
             r = [r1, r2, r3]
-            x = compute_stage_2(r, ps, βs, game)
+            x = compute_stage_2(r, ps, βs, complete_info_game, incomplete_info_game)
             defender_signal_0 = x[Block(1)]
             attacker_signal_0_world_idx = x[Block(world_idx + num_worlds + 1)]
             misid_cost = J_1(defender_signal_0, attacker_signal_0_world_idx, βs[world_idx])
@@ -645,7 +647,8 @@ Outputs:
 """
 function calculate_stage_1_costs(ps, βs; dr = 0.05, normalize = true)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
-    game, _ = build_stage_2(ps, βs)
+    complete_info_game = build_complete_info_game()
+    incomplete_info_game = build_incomplete_info_game(ps, βs)
     rs = 0:dr:1
     Ks = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1))
     for (i, r1) in enumerate(rs)
@@ -655,7 +658,7 @@ function calculate_stage_1_costs(ps, βs; dr = 0.05, normalize = true)
             end
             r3 = 1 - r1 - r2
             r = [r1, r2, r3]
-            x = compute_stage_2(r, ps, βs, game)
+            x = compute_stage_2(r, ps, βs, complete_info_game, incomplete_info_game)
             K = compute_K(r, x, ps, βs)
             Ks[i, j] = K
         end
@@ -735,7 +738,7 @@ function J_2(u, v, β)
     # -sum([activate(δ[j])*β[j]*δ[j]^2 for j in eachindex(β)])
 end
 
-function activate(δ; k=10.0)
+function activate(δ; k=1.0)
     return 1/(1 + exp(-2 * δ * k))
 end
 
@@ -797,6 +800,63 @@ function build_stage_2(ps, βs)
     ),
     fs
 end
+
+function build_complete_info_game()
+    fs = [
+        (x, θ) -> J_1(x[Block(1)], x[Block(2)], θ)
+        (x, θ) -> J_2(x[Block(1)], x[Block(2)], θ)
+    ]
+    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:2]
+    hs = [(x, θ) -> x[Block(i)] for i in 1:2]
+    g̃ = (x, θ) -> [0]
+    h̃ = (x, θ) -> [0]
+
+    ParametricGame(;
+        objectives = fs,
+        equality_constraints = gs,
+        inequality_constraints = hs,
+        shared_equality_constraint = g̃,
+        shared_inequality_constraint = h̃,
+        parameter_dimension = 3,
+        primal_dimensions = [3, 3],
+        equality_dimensions = [1, 1],
+        inequality_dimensions = [3, 3],
+        shared_equality_dimension = 1,
+        shared_inequality_dimension = 1,
+    )
+end
+
+function build_incomplete_info_game(ps, βs)
+    n = length(ps)# assume n_signals = n_worlds + 1
+    n_players = 1 + n
+
+    p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * ps[w_idx] / (1 - θ' * ps)
+    fs = [
+        (x, θ) -> sum([
+            p_w_k_0(w_idx, θ) * J_1(x[Block(1)], x[Block(w_idx + 1)], βs[w_idx]) for w_idx in 1:n
+        ]), # x^1(0, i)
+        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + 1)], βs[w_idx]) for w_idx in 1:n]...,
+    ]
+    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:n_players]
+    hs = [(x, θ) -> x[Block(i)] for i in 1:n_players]
+    g̃ = (x, θ) -> [0]
+    h̃ = (x, θ) -> [0]
+    
+    ParametricGame(;
+        objectives = fs,
+        equality_constraints = gs,
+        inequality_constraints = hs,
+        shared_equality_constraint = g̃,
+        shared_inequality_constraint = h̃,
+        parameter_dimension = 3,
+        primal_dimensions = [3 for _ in 1:n_players],
+        equality_dimensions = [1 for _ in 1:n_players],
+        inequality_dimensions = [3 for _ in 1:n_players],
+        shared_equality_dimension = 1,
+        shared_inequality_dimension = 1,
+    )
+end
+
 
 """
 Compute objective at Stage 1
@@ -871,27 +931,49 @@ Return Stage 2 decision variables given scout allocation r
 Input: 
     r: scout allocation
     ps: prior distribution of k worlds, nx1 vector
-    βs: vector containing P2's cost parameters for each world. Vector of nx1 vectors
 Output: 
     x: decision variables of Stage 2 given r. BlockedArray with a block per player
 """
-    function compute_stage_2(r, ps, βs, game; initial_guess = nothing, verbose = false, return_residual = false)
-    n = length(ps) # assume n_signals = n_worlds + 1
-    n_players = 1 + n^2
-    var_dim = n # TODO: Change this to be more general
+function compute_stage_2(
+    r,
+    ps,
+    βs,
+    complete_info_game,
+    incomplete_info_game;
+    initial_guess = nothing,
+    verbose = false,
+)
+    num_worlds = length(ps) # assume n_signals = n_worlds + 1
+    n_players = 1 + num_worlds^2
+    var_dim = num_worlds # TODO: Change this to be more general
 
-    solution = solve(
-        game,
+    solution_complete = [
+        solve(
+            complete_info_game,
+            β;
+            initial_guess = isnothing(initial_guess) ?
+                            1 / 3 * ones(total_dim(complete_info_game)) : initial_guess,
+            verbose,
+            return_primals = true,
+        ) for β in βs
+    ]
+
+    solution_incomplete = solve(
+        incomplete_info_game,
         r;
-        initial_guess = isnothing(initial_guess) ? 1/3 * ones(total_dim(game)) : initial_guess,
-        verbose = verbose,
-        return_primals = false,
+        initial_guess = isnothing(initial_guess) ?
+                        1 / 3 * ones(total_dim(incomplete_info_game)) : initial_guess,
+        verbose,
+        return_primals = true,
     )
 
-    if return_residual
-        return BlockArray(solution.variables[1:(n_players * var_dim)], [n for _ in 1:n_players]),
-        solution.info.residual
-    else
-        return BlockArray(solution.variables[1:(n_players * var_dim)], [n for _ in 1:n_players])
-    end
+    return BlockArray(
+        vcat(
+            solution_incomplete.variables[1:var_dim],
+            [solution_complete[i].variables[1:var_dim] for i in 1:num_worlds]...,
+            solution_incomplete.variables[(var_dim + 1):((num_worlds + 1) * var_dim)],
+            [solution_complete[i].variables[(var_dim + 1):(2 * var_dim)] for i in 1:num_worlds]...,
+        ),
+        [var_dim for _ in 1:n_players],
+    )
 end
