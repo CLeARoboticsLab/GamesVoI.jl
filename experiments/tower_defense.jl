@@ -134,9 +134,11 @@ function run_stage_1_breakout(;
 )
 
     if (display_controls in [1,2])
+        println("Calculating misid. costs")
         world_1_misid_costs, world_1_misid_controls = calculate_misid_costs(ps, βs, 1; dr, return_controls=display_controls)
         world_2_misid_costs, world_2_misid_controls = calculate_misid_costs(ps, βs, 2; dr, return_controls=display_controls)
         world_3_misid_costs, world_3_misid_controls = calculate_misid_costs(ps, βs, 3; dr, return_controls=display_controls)
+        println("Calculating id costs")
         world_1_id_costs, world_1_id_controls = calculate_id_costs(ps, βs, 1; dr, return_controls=display_controls)
         world_2_id_costs, world_2_id_controls = calculate_id_costs(ps, βs, 2; dr, return_controls=display_controls)
         world_3_id_costs, world_3_id_controls = calculate_id_costs(ps, βs, 3; dr, return_controls=display_controls)
@@ -291,8 +293,8 @@ end
 
 function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls=0)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
-    complete_info_game = build_complete_info_game()
-    incomplete_info_game = build_incomplete_info_game(ps, βs)
+    # complete_info_game = build_complete_info_game()
+    # incomplete_info_game = build_incomplete_info_game(ps, βs)
     rs = 0:dr:1
     num_worlds = length(ps)
     id_costs = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1))
@@ -312,7 +314,8 @@ function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls=0)
             end
             r3 = 1 - r1 - r2
             r = [r1, r2, r3]
-            x = compute_stage_2(r, ps, βs, complete_info_game, incomplete_info_game)
+            # x = compute_stage_2(r, ps, βs, complete_info_game, incomplete_info_game)
+            x = compute_stage_2(IBRGameSolver(), r, ps, βs, [J_1, J_2])
             id_cost =
                 r[world_idx] *
                 ps[world_idx] *
@@ -338,8 +341,8 @@ end
 
 function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 0)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
-    complete_info_game = build_complete_info_game()
-    incomplete_info_game = build_incomplete_info_game(ps, βs)
+    # complete_info_game = build_complete_info_game()
+    # incomplete_info_game = build_incomplete_info_game(ps, βs)
     rs = 0:dr:1
     num_worlds = length(ps)
     misid_costs = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1))
@@ -359,7 +362,8 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 
             end
             r3 = 1 - r1 - r2
             r = [r1, r2, r3]
-            x = compute_stage_2(r, ps, βs, complete_info_game, incomplete_info_game)
+            # x = compute_stage_2(r, ps, βs, complete_info_game, incomplete_info_game)
+            x = compute_stage_2(IBRGameSolver(), r, ps, βs, [J_1, J_2])
             defender_signal_0 = x[Block(1)]
             attacker_signal_0_world_idx = x[Block(world_idx + num_worlds + 1)]
             misid_cost = J_1(defender_signal_0, attacker_signal_0_world_idx, βs[world_idx])
@@ -738,7 +742,7 @@ function J_2(u, v, β)
     # -sum([activate(δ[j])*β[j]*δ[j]^2 for j in eachindex(β)])
 end
 
-function activate(δ; k=1.0)
+function activate(δ; k=10.0)
     return 1/(1 + exp(-2 * δ * k))
 end
 
@@ -976,4 +980,91 @@ function compute_stage_2(
         ),
         [var_dim for _ in 1:n_players],
     )
+end
+
+struct IBRGameSolver end
+
+function compute_stage_2(
+    ::IBRGameSolver,
+    r,
+    ps,
+    βs,
+    Js;
+    initial_guess = nothing,
+    max_ibr_rounds = 100,
+    ibr_convergence_tolerance = 1e-3,
+    verbose = false,
+)
+    num_worlds = length(ps) # assume n_signals = n_worlds + 1
+    total_num_vars = num_worlds + 1 + 2*num_worlds
+    if isnothing(initial_guess)
+        x = 1/3 * ones((num_worlds + 1) * num_worlds + 2 * num_worlds^2)
+    else
+        x = initial_guess
+    end
+    x = BlockArray(x, [num_worlds for _ in 1:total_num_vars])
+
+    # Solve complete information games
+    for world_idx in 1:num_worlds        
+        β = βs[world_idx]
+        x_1 = x[Block(1 + world_idx)]
+        x_2 = x[Block(1 + 2 * num_worlds + world_idx)]
+        for i_ibr in 1:max_ibr_rounds
+            last_solution = [x_1, x_2]
+            x_1 = gradient_play(x_1 -> Js[1](x_1, x_2, β), x_1; verbose)
+            x_2 = gradient_play(x_2 -> Js[2](x_1, x_2, β), x_2; verbose)
+            converged = norm([x_1, x_2] - last_solution) < ibr_convergence_tolerance
+            if converged
+                verbose && @info "World $world_idx complete info. game converged after $i_ibr IBR iterations"
+                break
+            end
+        end
+        x[Block(1 + world_idx)] = x_1
+        x[Block(1 + 2 * num_worlds + world_idx)] = x_2
+    end
+
+    # Solve incomplete information game
+    # TODO: Implement incomplete information game
+    # x_1_0  = x[Block(1)]
+    # x_2_0s = [x[Block(1 + num_worlds + world_idx)] for world_idx in 1:num_worlds]
+    # for i_ibr in 1:max_ibr_rounds
+    #     last_solution = [x_1_0, x_2_0s]
+    #     x_1_0 = gradient_play(
+    #         x_1_0 -> compute_K(
+    #             r,
+    #             BlockArray(
+    #                 vcat(x_1_0, x[(num_worlds + 1):end]),
+    #                 [num_worlds for _ in 1:total_num_vars],
+    #             ),
+    #             ps,
+    #             βs,
+    #         ),
+    #         x_1_0;
+    #         verbose,
+    #     )
+    #     x_2 = gradient_play(x_2 -> Js[2](x_1, x_2, β), x_2; verbose)
+    #     converged = norm([x_1, x_2] - last_solution) < ibr_convergence_tolerance
+    #     if converged
+    #         verbose && @info "World $world_idx complete info. game converged after $i_ibr IBR iterations"
+    #         break
+    #     end
+    # end
+    return x
+end
+
+function gradient_play(cost_function, x; max_iter = 100, α = 0.05, tol = 1e-6, verbose = false)
+    iter = 0
+    x_prev = x
+    while iter < max_iter
+        x_prev = x
+        dJdx = gradient(x -> cost_function(x), x)[1]
+        x_temp = x - α .* dJdx
+        x = project_onto_simplex(x_temp)
+        iter += 1
+        if (norm(x - x_prev) < tol)
+            verbose && @info " Gradient descent converged after $iter iterations"
+            break
+        end
+    end
+    return x
 end
