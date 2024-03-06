@@ -870,6 +870,15 @@ function compute_K(r, x, ps, βs)
     sum([(1 - r[j]) * ps[j] * J_1(x[Block(1)], x[Block(j + n + 1)], βs[j]) for j in 1:n]) + sum([r[j] * ps[j] * J_1(x[Block(j + 1)], x[Block(j + 2 * n + 1)], βs[j]) for j in 1:n])
 end
 
+function compute_incomplete_info_cost_term_i(r, ps, r_i, x_1_0, x_2_0_i, ps_i, βs_i)
+    (1 - r_i) * ps_i / (1 - r' * ps) * J_1(x_1_0, x_2_0_i, βs_i)
+end
+
+function compute_P1_incomplete_info_cost(r, x_1_0, x_2_0s, ps, βs)
+    n = length(ps)
+    sum([compute_incomplete_info_cost_term_i(r, ps, r[i], x_1_0, x_2_0s[Block(i)], ps[i], βs[i]) for i in 1:n])
+end
+
 """
 Compute derivative of Stage 1's objective function w.r.t. x
 """
@@ -1024,35 +1033,42 @@ function compute_stage_2(
     end
 
     # Solve incomplete information game
-    # TODO: Implement incomplete information game
-    # x_1_0  = x[Block(1)]
-    # x_2_0s = [x[Block(1 + num_worlds + world_idx)] for world_idx in 1:num_worlds]
-    # for i_ibr in 1:max_ibr_rounds
-    #     last_solution = [x_1_0, x_2_0s]
-    #     x_1_0 = gradient_play(
-    #         x_1_0 -> compute_K(
-    #             r,
-    #             BlockArray(
-    #                 vcat(x_1_0, x[(num_worlds + 1):end]),
-    #                 [num_worlds for _ in 1:total_num_vars],
-    #             ),
-    #             ps,
-    #             βs,
-    #         ),
-    #         x_1_0;
-    #         verbose,
-    #     )
-    #     x_2 = gradient_play(x_2 -> Js[2](x_1, x_2, β), x_2; verbose)
-    #     converged = norm([x_1, x_2] - last_solution) < ibr_convergence_tolerance
-    #     if converged
-    #         verbose && @info "World $world_idx complete info. game converged after $i_ibr IBR iterations"
-    #         break
-    #     end
-    # end
+    x_1_0  = x[Block(1)]
+    x_2_0s = BlockArray(
+        x[((1 + num_worlds) * num_worlds + 1):((1 + num_worlds) * num_worlds + num_worlds * num_worlds)], # P2, s = 0
+        [num_worlds for _ in 1:num_worlds],
+    )
+    for i_ibr in 1:max_ibr_rounds
+        last_solution = vcat(x_1_0, x_2_0s)
+        x_1_0 = gradient_play(
+            x_1_0 -> compute_P1_incomplete_info_cost(r, x_1_0, x_2_0s, ps, βs),
+            x_1_0;
+            verbose,
+        )
+        for world_idx in 1:num_worlds
+            x_2_0s[Block(world_idx)] = gradient_play(
+                x_2_0s -> Js[2](x_1_0, x_2_0s, βs[world_idx]),
+                x_2_0s[Block(world_idx)];
+                verbose,
+                α = 0.05
+            )
+        end
+        converged = norm(vcat(x_1_0, x_2_0s) - last_solution) < ibr_convergence_tolerance
+        if converged
+            verbose && @info "Incomplete complete info. game converged after $i_ibr IBR iterations"
+            break
+        end
+        x[Block(1)] = x_1_0
+        for world_idx in 1:num_worlds
+            x[Block(1 + 2 * num_worlds + world_idx)] = x_2_0s[Block(world_idx)]
+        end
+    end
     return x
 end
 
-function gradient_play(cost_function, x; max_iter = 100, α = 0.05, tol = 1e-6, verbose = false)
+function gradient_play(cost_function, x; max_iter = 100, α = 0.05, tol = 1e-3, verbose = false, text = nothing)
+    x_init = deepcopy(x)
+
     iter = 0
     x_prev = x
     while iter < max_iter
@@ -1062,9 +1078,28 @@ function gradient_play(cost_function, x; max_iter = 100, α = 0.05, tol = 1e-6, 
         x = project_onto_simplex(x_temp)
         iter += 1
         if (norm(x - x_prev) < tol)
-            verbose && @info " Gradient descent converged after $iter iterations"
-            break
+            verbose && @info "  Gradient descent converged after $iter iterations"
+            return x
         end
     end
+    @warn "  Gradient descent did not converge after $max_iter iterations"
+    Main.@infiltrate
+
+    # TEMP DEBUGGING
+    iter = 0
+    x = x_init
+    while iter < max_iter
+        x_prev = x
+        dJdx = gradient(x -> cost_function(x), x)[1]
+        x_temp = x - α .* dJdx
+        x = project_onto_simplex(x_temp)
+        iter += 1
+        if (norm(x - x_prev) < tol)
+            verbose && @info "  Gradient descent converged after $iter iterations"
+        end
+        println("x = $x", " norm ", norm(x - x_prev))
+    end
+
+    Main.@infiltrate
     return x
 end
