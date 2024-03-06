@@ -651,8 +651,6 @@ Outputs:
 """
 function calculate_stage_1_costs(ps, βs; dr = 0.05, normalize = true)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
-    complete_info_game = build_complete_info_game()
-    incomplete_info_game = build_incomplete_info_game(ps, βs)
     rs = 0:dr:1
     Ks = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1))
     for (i, r1) in enumerate(rs)
@@ -662,7 +660,7 @@ function calculate_stage_1_costs(ps, βs; dr = 0.05, normalize = true)
             end
             r3 = 1 - r1 - r2
             r = [r1, r2, r3]
-            x = compute_stage_2(r, ps, βs, complete_info_game, incomplete_info_game)
+            x = compute_stage_2(IBRGameSolver(), r, ps, βs, [J_1, J_2])
             K = compute_K(r, x, ps, βs)
             Ks[i, j] = K
         end
