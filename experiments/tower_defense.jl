@@ -108,7 +108,6 @@ Temp. script to calculate and plot heatmap of Stage 1 cost function
 function run_visualization()
     dr = 0.05
     ps = [1/3, 1 / 3, 1 / 3]
-    s = 3.0
     βs = [
         [3.0, 2.0, 2.0], 
         [2.0, 3.0, 2.0], 
@@ -127,7 +126,7 @@ function run_stage_1_breakout(;
     dr = 0.05,
     βs = [
         [3.0, 2.0, 2.0], 
-        [2.0, 3.0, 2.0], 
+        [2.0, 3.0 , 2.0], 
         [2.0, 2.0, 3.0]
     ],
     ps = [1/3, 1/3, 1/3],
@@ -213,11 +212,16 @@ function run_sweep(perturbations, k, perturbation_type; dr = 0.05)
     ps = [1/3, 1/3, 1/3]
     fig = Figure(size = (1300, 800))
     for perturbation in perturbations
+        # βs = [
+        #         [3.0 + perturbation, 2.0, 2.0], 
+        #         [2.0, 3.0, 2.0], 
+        #         [2.0, 2.0, 3.0]
+        #     ]
         βs = [
-                [3.0 + perturbation, 2.0, 2.0], 
-                [2.0, 3.0, 2.0], 
-                [2.0, 2.0, 3.0]
-            ]
+            [2.0 + perturbation, 2.0, 2.0], 
+            [2.0, 2.0 + perturbation, 2.0], 
+            [2.0, 2.0, 2.0 + perturbation]
+        ]
         Ks = calculate_stage_1_costs(ps, βs; dr)
         
         # Nasty but gets the job done
@@ -1048,7 +1052,6 @@ function compute_stage_2(
                 x_2_0s -> Js[2](x_1_0, x_2_0s, βs[world_idx]),
                 x_2_0s[Block(world_idx)];
                 verbose,
-                α = 0.05
             )
         end
         converged = norm(vcat(x_1_0, x_2_0s) - last_solution) < ibr_convergence_tolerance
@@ -1056,16 +1059,15 @@ function compute_stage_2(
             verbose && @info "Incomplete complete info. game converged after $i_ibr IBR iterations"
             break
         end
-        x[Block(1)] = x_1_0
-        for world_idx in 1:num_worlds
-            x[Block(1 + 2 * num_worlds + world_idx)] = x_2_0s[Block(world_idx)]
-        end
+    end
+    x[Block(1)] = x_1_0
+    for world_idx in 1:num_worlds
+        x[Block(1 + num_worlds + world_idx)] = x_2_0s[Block(world_idx)]
     end
     return x
 end
 
-function gradient_play(cost_function, x; max_iter = 100, α = 0.05, tol = 1e-3, verbose = false, text = nothing)
-    x_init = deepcopy(x)
+function gradient_play(cost_function, x; max_iter = 200, α = 0.05, tol = 1e-3, verbose = false, text = nothing)
 
     iter = 0
     x_prev = x
@@ -1081,23 +1083,5 @@ function gradient_play(cost_function, x; max_iter = 100, α = 0.05, tol = 1e-3, 
         end
     end
     @warn "  Gradient descent did not converge after $max_iter iterations"
-    Main.@infiltrate
-
-    # TEMP DEBUGGING
-    iter = 0
-    x = x_init
-    while iter < max_iter
-        x_prev = x
-        dJdx = gradient(x -> cost_function(x), x)[1]
-        x_temp = x - α .* dJdx
-        x = project_onto_simplex(x_temp)
-        iter += 1
-        if (norm(x - x_prev) < tol)
-            verbose && @info "  Gradient descent converged after $iter iterations"
-        end
-        println("x = $x", " norm ", norm(x - x_prev))
-    end
-
-    Main.@infiltrate
     return x
 end
