@@ -108,6 +108,7 @@ end
 """
 Temp. script to get Stage 2 decision landscape(s)
 (Just perfect information, right now) 
+Example call: visualize_decisions(1,βs = [[6.5,2.,2.], [2., 3., 2.], [2., 2., 3.]])
 """
 function visualize_decisions(world_idx;r=[1.,0.,0.],βs =nothing, save_name="")
     players = [1,2]
@@ -421,6 +422,7 @@ function get_stage2_landscape(ps, βs, r, world_idx; dx = 0.05, players = [1,2],
     xnash_P1 = xnash[Block(world_idx + 1)]
     xnash_P2 = xnash[Block(world_idx + 2 * num_worlds + 1)]
 
+    @infiltrate
     for (i, x1) in enumerate(xs)
         for (j, x2) in enumerate(xs)
             if x1 + x2 > 1
