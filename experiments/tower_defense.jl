@@ -53,7 +53,9 @@ function solve_r(
     end
     game, _ = build_stage_2(ps, βs)
     r = r_init
-    println("0: r = $r")
+    if verbose
+        println("0: r = $r")
+    end
     x = compute_stage_2(r, ps, βs, game)
     dKdr = zeros(Float64, n)
     while cur_iter < iter_limit # TODO: Break if change from last iteration is small
@@ -74,7 +76,9 @@ function solve_r(
         # compute stage 1 cost function for current r and x 
         K = compute_K(r, x, ps, βs)
         # println("r_temp = $(round.(r_temp, digits=3)), dKdr = $(round.(dKdr, digits=3)) r = $(round.(r, digits=3)) K = $(round(K, digits=3))")
-        println("r = $(round.(r, digits=3))")
+        if verbose
+            println("r = $(round.(r, digits=3))")
+        end
         cur_iter += 1
     end
     if return_states
@@ -953,7 +957,7 @@ Input:
 Output: 
     x: decision variables of Stage 2 given r. BlockedArray with a block per player
 """
-function compute_stage_2(r, ps, βs, game; initial_guess = nothing, verbose = false, return_residual = false)
+function compute_stage_2(r, ps, βs, game; initial_guess = nothing, verbose=false)
     n = length(ps) # assume n_signals = n_worlds + 1
     n_players = 1 + n^2
     var_dim = n # TODO: Change this to be more general
