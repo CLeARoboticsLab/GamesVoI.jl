@@ -41,6 +41,7 @@ function solve_r(
     target_error = 0.00001,
     α = 1,
     return_states = false,
+    verbose=false,
 )
     @assert sum(r_init) ≈ 1.0 "Initial guess r must be a probability distribution"
     cur_iter = 0
@@ -957,7 +958,7 @@ Input:
 Output: 
     x: decision variables of Stage 2 given r. BlockedArray with a block per player
 """
-function compute_stage_2(r, ps, βs, game; initial_guess = nothing, verbose=false)
+function compute_stage_2(r, ps, βs, game; initial_guess = nothing, return_residual = false,verbose=false)
     n = length(ps) # assume n_signals = n_worlds + 1
     n_players = 1 + n^2
     var_dim = n # TODO: Change this to be more general
