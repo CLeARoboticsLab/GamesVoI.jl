@@ -103,7 +103,7 @@ function solve_r(
 end
 
 """
-Temp. script to calculate and plot heatmap of Stage 1 cost function 
+Visualization. Calculate and plot Stage 1 cost as a function of r for a given prior distribution and attacker preference.
 """
 function run_visualization()
     dr = 0.05
@@ -119,7 +119,8 @@ function run_visualization()
 end
 
 """
-Temp. script to calculate and plot surfaces for the terms in Stage 1's cost function 
+Visualization. Calculate and plot all terms in the Stage 1 cost as a function of r for a given prior distribution and attacker preference.
+Assumes number of worlds and signals is 3.
 """
 function run_stage_1_breakout(;
     display_controls = 0, 
@@ -252,49 +253,16 @@ function run_sweep(perturbations, k, perturbation_type; dr = 0.05)
     end
 end
 
-function run_residuals()
-    dr = 0.01
-    ps = [1/3, 1/3, 1/3]
-    βs = [
-        [4.0, 2.0, 2.0], 
-        [2.0, 4.0, 2.0], 
-        [2.0, 2.0, 4.0]
-    ] 
-    world_1_residuals = calculate_residuals(ps, βs, 1; dr)
-    world_2_residuals = calculate_residuals(ps, βs, 2; dr)  
-    world_3_residuals = calculate_residuals(ps, βs, 3; dr)
+"""
+Calculate costs corresponding to a perfect info term in the Stage 1 cost function with index world_idx.
 
-    display_residuals(
-        [
-            world_1_residuals,
-            world_2_residuals,
-            world_3_residuals,
-        ],
-        ps,
-    )
-end
-
-function calculate_residuals(ps, βs, world_idx; dr = 0.05)
-    @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
-    game, _ = build_stage_2(ps, βs)
-    rs = 0:dr:1
-    num_worlds = length(ps)
-    residuals = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1))
-    for (i, r1) in enumerate(rs)
-        for (j, r2) in enumerate(rs)
-            if r1 + r2 > 1
-                continue
-            end
-            r3 = 1 - r1 - r2
-            r = [r1, r2, r3]
-            _, residual = compute_stage_2(r, ps, βs, game; return_residual = true)
-            residuals[i, j] = residual
-        end
-    end
-
-    return residuals
-end
-
+Input: 
+    ps: prior distribution of k worlds for each signal, nx1 vector
+    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
+    world_idx: index of the world for which the cost is calculated
+Output: 
+    id_costs: 2D Matrix of costs for each r in the simplex
+"""
 function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls=0)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
     # complete_info_game = build_complete_info_game()
@@ -343,6 +311,16 @@ function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls=0)
     end
 end
 
+"""
+Calculate costs corresponding to a imperfect info term in the Stage 1 cost function with index world_idx.
+
+Input: 
+    ps: prior distribution of k worlds for each signal, nx1 vector
+    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
+    world_idx: index of the world for which the cost is calculated
+Output: 
+    id_costs: 2D Matrix of costs for each r in the simplex
+"""
 function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 0)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
     # complete_info_game = build_complete_info_game()
@@ -734,8 +712,14 @@ function J_1(u, v, β)
 end
 
 """
-Attacker cost function
-β: vector containing P2's (attacker) preference parameters for each world.
+Attacker cost function. Sigmoidal cost function with force multipliers
+
+Inputs: 
+    u: vector containing P1's (defender) strategy for each world.
+    v: vector containing P2's (attacker) strategy for each world.
+    β: vector containing P2's (attacker) preference parameters for each world.
+Outputs 
+    J_2: Attacker's cost function
 """
 function J_2(u, v, β)
     δ = [β[ii]*v[ii] - u[ii] for ii in eachindex(β)]
@@ -744,6 +728,7 @@ function J_2(u, v, β)
     # -sum([activate(δ[j])*β[j]*δ[j]^2 for j in eachindex(β)])
 end
 
+"Activation function for attacker cost function"
 function activate(δ; k=10.0)
     return 1/(1 + exp(-2 * δ * k))
 end
@@ -807,6 +792,9 @@ function build_stage_2(ps, βs)
     fs
 end
 
+"""
+Build complete information parametric for Stage 2. Assumes 2 players, 3 signals, 3 worlds.
+"""
 function build_complete_info_game()
     fs = [
         (x, θ) -> J_1(x[Block(1)], x[Block(2)], θ)
@@ -832,6 +820,9 @@ function build_complete_info_game()
     )
 end
 
+"""
+Build incomplete information parametric for Stage 2. Assumes 2 players, 3 signals, 3 worlds.
+"""
 function build_incomplete_info_game(ps, βs)
     n = length(ps)# assume n_signals = n_worlds + 1
     n_players = 1 + n
@@ -865,13 +856,34 @@ end
 
 
 """
-Compute objective at Stage 1
+Compute Stage 1 objective
+
+Inputs: 
+    r: scout allocation
+    x: decision variables of Stage 2
+    ps: prior distribution of k worlds, nx1 vector
+    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
+Output: 
+    K: Stage 1's objective function value
 """
 function compute_K(r, x, ps, βs)
     n = length(ps)
     sum([(1 - r[j]) * ps[j] * J_1(x[Block(1)], x[Block(j + n + 1)], βs[j]) for j in 1:n]) + sum([r[j] * ps[j] * J_1(x[Block(j + 1)], x[Block(j + 2 * n + 1)], βs[j]) for j in 1:n])
 end
 
+"""
+Compute incomplete information cost term for a single world
+Inputs: 
+    r: scout allocation
+    ps: prior distribution of k worlds, nx1 vector
+    r_i: scout allocation for world i
+    x_1_0: defender's decision for signal 0
+    x_2_0_i: attacker's decision for signal 0 and world i
+    ps_i: prior distribution of world i
+    βs_i: P2's cost parameters for world i
+Outputs: 
+    cost_term: incomplete info cost term for world i
+"""
 function compute_incomplete_info_cost_term_i(r, ps, r_i, x_1_0, x_2_0_i, ps_i, βs_i)
     (1 - r_i) * ps_i / (1 - r' * ps) * J_1(x_1_0, x_2_0_i, βs_i)
 end
@@ -995,6 +1007,17 @@ end
 
 struct IBRGameSolver end
 
+"""
+Compute Stage 2 decision variables using Iterative Best Response
+
+Inputs: 
+    r: scout allocation
+    ps: prior distribution of k worlds, nx1 vector
+    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
+    Js: vector containing P1 and P2's cost functions
+Outputs:
+    x: decision variables of Stage 2 given r. BlockedArray with a block per player
+"""
 function compute_stage_2(
     ::IBRGameSolver,
     r,
@@ -1067,6 +1090,15 @@ function compute_stage_2(
     return x
 end
 
+"""
+Gradient descent while projecting onto the simplex
+
+Input: 
+    cost_function: function to minimize
+    x: initial guess
+Output: 
+    x: minimizer of cost_function
+"""
 function gradient_play(cost_function, x; max_iter = 200, α = 0.05, tol = 1e-3, verbose = false, text = nothing)
 
     iter = 0
