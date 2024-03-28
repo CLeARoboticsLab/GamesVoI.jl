@@ -18,9 +18,7 @@ using GLMakie:
     rotr90,
     hidedecorations!,
     hidezdecorations!
-    record, 
-    empty!, 
-    resize_to_layout!
+record, empty!, resize_to_layout!
 using FileIO
 using LaTeXStrings
 
@@ -70,13 +68,13 @@ Outputs
     J_2: Attacker's cost function
 """
 function J_2(u, v, β)
-    δ = [β[ii]*v[ii] - u[ii] for ii in eachindex(β)]
-    -sum([activate(δ[j])*(β[j]*v[j]-u[j])^2 for j in eachindex(β)])
+    δ = [β[ii] * v[ii] - u[ii] for ii in eachindex(β)]
+    -sum([activate(δ[j]) * (β[j] * v[j] - u[j])^2 for j in eachindex(β)])
 end
 
 "Activation function for attacker cost function"
-function activate(δ; k=10.0)
-    return 1/(1 + exp(-2 * δ * k))
+function activate(δ; k = 10.0)
+    return 1 / (1 + exp(-2 * δ * k))
 end
 
 # --------------------------------------------------------------------------------------------------------------------------------
@@ -201,7 +199,7 @@ Outputs:
 function compute_dxdr(r, x, ps, βs, game; verbose = false)
     n = length(ps)
     n_players = 1 + n^2
-    var_dim = n 
+    var_dim = n
 
     # Return Jacobian
     dxdr = jacobian(
@@ -327,7 +325,7 @@ function build_incomplete_info_game(ps, βs)
     hs = [(x, θ) -> x[Block(i)] for i in 1:n_players]
     g̃ = (x, θ) -> [0]
     h̃ = (x, θ) -> [0]
-    
+
     ParametricGame(;
         objectives = fs,
         equality_constraints = gs,
@@ -378,9 +376,11 @@ end
 
 function compute_P1_incomplete_info_cost(r, x_1_0, x_2_0s, ps, βs)
     n = length(ps)
-    sum([compute_incomplete_info_cost_term_i(r, ps, r[i], x_1_0, x_2_0s[Block(i)], ps[i], βs[i]) for i in 1:n])
+    sum([
+        compute_incomplete_info_cost_term_i(r, ps, r[i], x_1_0, x_2_0s[Block(i)], ps[i], βs[i]) for
+        i in 1:n
+    ])
 end
-
 
 """
 Compute Stage 2 decision variables given r using PATH
@@ -460,16 +460,16 @@ function compute_stage_2(
     verbose = false,
 )
     num_worlds = length(ps) # assume n_signals = n_worlds + 1
-    total_num_vars = num_worlds + 1 + 2*num_worlds
+    total_num_vars = num_worlds + 1 + 2 * num_worlds
     if isnothing(initial_guess)
-        x = 1/3 * ones((num_worlds + 1) * num_worlds + 2 * num_worlds^2)
+        x = 1 / 3 * ones((num_worlds + 1) * num_worlds + 2 * num_worlds^2)
     else
         x = initial_guess
     end
     x = BlockArray(x, [num_worlds for _ in 1:total_num_vars])
 
     # Solve complete information games
-    for world_idx in 1:num_worlds        
+    for world_idx in 1:num_worlds
         β = βs[world_idx]
         x_1 = x[Block(1 + world_idx)]
         x_2 = x[Block(1 + 2 * num_worlds + world_idx)]
@@ -479,7 +479,8 @@ function compute_stage_2(
             x_2 = gradient_play(x_2 -> Js[2](x_1, x_2, β), x_2; verbose)
             converged = norm([x_1, x_2] - last_solution) < ibr_convergence_tolerance
             if converged
-                verbose && @info "World $world_idx complete info. game converged after $i_ibr IBR iterations"
+                verbose &&
+                    @info "World $world_idx complete info. game converged after $i_ibr IBR iterations"
                 break
             end
         end
@@ -488,7 +489,7 @@ function compute_stage_2(
     end
 
     # Solve incomplete information game
-    x_1_0  = x[Block(1)]
+    x_1_0 = x[Block(1)]
     x_2_0s = BlockArray(
         x[((1 + num_worlds) * num_worlds + 1):((1 + num_worlds) * num_worlds + num_worlds * num_worlds)], # P2, s = 0
         [num_worlds for _ in 1:num_worlds],
@@ -529,8 +530,15 @@ Input:
 Output: 
     x: minimizer of cost_function
 """
-function gradient_play(cost_function, x; max_iter = 200, α = 0.05, tol = 1e-3, verbose = false, text = nothing)
-
+function gradient_play(
+    cost_function,
+    x;
+    max_iter = 200,
+    α = 0.05,
+    tol = 1e-3,
+    verbose = false,
+    text = nothing,
+)
     iter = 0
     x_prev = x
     while iter < max_iter
@@ -557,12 +565,8 @@ Visualization. Calculate and plot Stage 1 cost as a function of r for a given pr
 """
 function run_visualization()
     dr = 0.05
-    ps = [1/3, 1 / 3, 1 / 3]
-    βs = [
-        [3.0, 2.0, 2.0], 
-        [2.0, 3.0, 2.0], 
-        [2.0, 2.0, 3.0]
-    ]
+    ps = [1 / 3, 1 / 3, 1 / 3]
+    βs = [[3.0, 2.0, 2.0], [2.0, 3.0, 2.0], [2.0, 2.0, 3.0]]
     Ks = calculate_stage_1_costs(ps, βs; dr)
     fig = display_surface(ps, Ks)
     fig
@@ -573,25 +577,26 @@ Visualization. Calculate and plot all terms in the Stage 1 cost as a function of
 Assumes number of worlds and signals is 3.
 """
 function run_stage_1_breakout(;
-    display_controls = 0, 
+    display_controls = 0,
     dr = 0.05,
-    βs = [
-        [3.0, 2.0, 2.0], 
-        [2.0, 3.0 , 2.0], 
-        [2.0, 2.0, 3.0]
-    ],
-    ps = [1/3, 1/3, 1/3],
+    βs = [[3.0, 2.0, 2.0], [2.0, 3.0, 2.0], [2.0, 2.0, 3.0]],
+    ps = [1 / 3, 1 / 3, 1 / 3],
 )
-
-    if (display_controls in [1,2])
+    if (display_controls in [1, 2])
         println("Calculating misid. costs")
-        world_1_misid_costs, world_1_misid_controls = calculate_misid_costs(ps, βs, 1; dr, return_controls=display_controls)
-        world_2_misid_costs, world_2_misid_controls = calculate_misid_costs(ps, βs, 2; dr, return_controls=display_controls)
-        world_3_misid_costs, world_3_misid_controls = calculate_misid_costs(ps, βs, 3; dr, return_controls=display_controls)
+        world_1_misid_costs, world_1_misid_controls =
+            calculate_misid_costs(ps, βs, 1; dr, return_controls = display_controls)
+        world_2_misid_costs, world_2_misid_controls =
+            calculate_misid_costs(ps, βs, 2; dr, return_controls = display_controls)
+        world_3_misid_costs, world_3_misid_controls =
+            calculate_misid_costs(ps, βs, 3; dr, return_controls = display_controls)
         println("Calculating id costs")
-        world_1_id_costs, world_1_id_controls = calculate_id_costs(ps, βs, 1; dr, return_controls=display_controls)
-        world_2_id_costs, world_2_id_controls = calculate_id_costs(ps, βs, 2; dr, return_controls=display_controls)
-        world_3_id_costs, world_3_id_controls = calculate_id_costs(ps, βs, 3; dr, return_controls=display_controls)
+        world_1_id_costs, world_1_id_controls =
+            calculate_id_costs(ps, βs, 1; dr, return_controls = display_controls)
+        world_2_id_costs, world_2_id_controls =
+            calculate_id_costs(ps, βs, 2; dr, return_controls = display_controls)
+        world_3_id_costs, world_3_id_controls =
+            calculate_id_costs(ps, βs, 3; dr, return_controls = display_controls)
     else
         world_1_misid_costs = calculate_misid_costs(ps, βs, 1; dr)
         world_2_misid_costs = calculate_misid_costs(ps, βs, 2; dr)
@@ -601,20 +606,19 @@ function run_stage_1_breakout(;
         world_3_id_costs = calculate_id_costs(ps, βs, 3; dr)
     end
     # Normalize using maximum value across all worlds
-    max_value =
-        maximum(
-            filter(
-                !isnan,
-                vcat(
-                    world_1_misid_costs,
-                    world_2_misid_costs,
-                    world_3_misid_costs,
-                    world_1_id_costs,
-                    world_2_id_costs,
-                    world_3_id_costs,
-                ),
+    max_value = maximum(
+        filter(
+            !isnan,
+            vcat(
+                world_1_misid_costs,
+                world_2_misid_costs,
+                world_3_misid_costs,
+                world_1_id_costs,
+                world_2_id_costs,
+                world_3_id_costs,
             ),
-        )
+        ),
+    )
     world_1_misid_costs = [isnan(c) ? NaN : c / max_value for c in world_1_misid_costs]
     world_2_misid_costs = [isnan(c) ? NaN : c / max_value for c in world_2_misid_costs]
     world_3_misid_costs = [isnan(c) ? NaN : c / max_value for c in world_3_misid_costs]
@@ -623,7 +627,7 @@ function run_stage_1_breakout(;
     world_3_id_costs = [isnan(c) ? NaN : c / max_value for c in world_3_id_costs]
 
     fig = nothing
-    if (display_controls in [1,2])
+    if (display_controls in [1, 2])
         fig = display_stage_1_costs_controls(
             [
                 world_1_id_costs,
@@ -663,32 +667,36 @@ end
 Visualization. Run sweep over a set of perturbations for the attacker's cost functions. 
 """
 function run_sweep(perturbations, k, perturbation_type; dr = 0.05)
-    ps = [1/3, 1/3, 1/3]
+    ps = [1 / 3, 1 / 3, 1 / 3]
     fig = Figure(size = (1300, 800))
     for perturbation in perturbations
-        βs = [
-                [3.0 + perturbation, 2.0, 2.0], 
-                [2.0, 3.0, 2.0], 
-                [2.0, 2.0, 3.0]
-            ]
+        βs = [[3.0 + perturbation, 2.0, 2.0], [2.0, 3.0, 2.0], [2.0, 2.0, 3.0]]
         # βs = [
         #     [2.0 + perturbation, 2.0, 2.0], 
         #     [2.0, 2.0 + perturbation, 2.0], 
         #     [2.0, 2.0, 2.0 + perturbation]
         # ]
         Ks = calculate_stage_1_costs(ps, βs; dr)
-        
+
         # Nasty but gets the job done
         fig = Figure(size = (1300, 800))
-        
+
         run_stage_1_breakout(display_controls = 1, dr = dr, βs = βs, ps = ps)
         defender_controls = load("figures/stage_1_controls.png")
-        image(fig[1, 1], rotr90(defender_controls), axis = (aspect = DataAspect(), title = "defender"))
+        image(
+            fig[1, 1],
+            rotr90(defender_controls),
+            axis = (aspect = DataAspect(), title = "defender"),
+        )
         hidedecorations!(fig.content[1])
 
         run_stage_1_breakout(display_controls = 2, dr = dr, βs = βs, ps = ps)
         attacker_controls = load("figures/stage_1_controls.png")
-        image(fig[1, 2], rotr90(attacker_controls), axis = (aspect = DataAspect(), title = "attacker"))
+        image(
+            fig[1, 2],
+            rotr90(attacker_controls),
+            axis = (aspect = DataAspect(), title = "attacker"),
+        )
         hidedecorations!(fig.content[2])
 
         display_surface(ps, Ks)
@@ -696,7 +704,12 @@ function run_sweep(perturbations, k, perturbation_type; dr = 0.05)
         image(fig[2, 2], rotr90(stage_1_surface), axis = (aspect = DataAspect(), title = "stage 1"))
         hidedecorations!(fig.content[3])
 
-        Axis(fig[2, 1], aspect = DataAspect(), title = perturbation_type * " \n perturbation: $perturbation \n k = $k", backgroundcolor = :gray50)
+        Axis(
+            fig[2, 1],
+            aspect = DataAspect(),
+            title = perturbation_type * " \n perturbation: $perturbation \n k = $k",
+            backgroundcolor = :gray50,
+        )
         # hidedecorations!(fig.content[4])
 
         save("figures/sweep/sweep_$(perturbation_type)_s$(perturbation)_k$(k).png", fig)
@@ -716,17 +729,17 @@ Input:
 Output: 
     id_costs: 2D Matrix of costs for each r in the simplex
 """
-function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls=0)
+function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls = 0)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
     # complete_info_game = build_complete_info_game()
     # incomplete_info_game = build_incomplete_info_game(ps, βs)
     rs = 0:dr:1
     num_worlds = length(ps)
     id_costs = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1))
-    if(return_controls>0) ## ideally, it should be 1 or 2 for P1 or P2
-        if(return_controls <= 2)
+    if (return_controls > 0) ## ideally, it should be 1 or 2 for P1 or P2
+        if (return_controls <= 2)
             controls = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1), 3)
-        else 
+        else
             println("Invalid return_controls option.")
             return_controls = 0
         end
@@ -757,7 +770,7 @@ function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls=0)
         end
     end
 
-    if(return_controls>0)
+    if (return_controls > 0)
         return id_costs, controls
     else
         return id_costs
@@ -781,10 +794,10 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 
     rs = 0:dr:1
     num_worlds = length(ps)
     misid_costs = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1))
-    if(return_controls>0) ## ideally, it should be 1 or 2 for P1 or P2
-        if(return_controls <= 2)
+    if (return_controls > 0) ## ideally, it should be 1 or 2 for P1 or P2
+        if (return_controls <= 2)
             controls = NaN * ones(Float64, Int(1 / dr + 1), Int(1 / dr + 1), 3)
-        else 
+        else
             println("Invalid return_controls option.")
             return_controls = 0
         end
@@ -811,12 +824,11 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 
         end
     end
 
-    if(return_controls>0)
+    if (return_controls > 0)
         return misid_costs, controls
     else
         return misid_costs
     end
-
 end
 
 """
@@ -950,8 +962,7 @@ function display_stage_1_costs_controls(costs, controls, ps)
                 if rs[ii] + rs[jj] > 1
                     continue
                 end
-                hmap =
-                    scatter!(axs[2][world_idx], rs[ii], rs[jj], color = colors[ii, jj])
+                hmap = scatter!(axs[2][world_idx], rs[ii], rs[jj], color = colors[ii, jj])
             end
         end
     end
@@ -963,9 +974,9 @@ end
 This is quick function to turn my controls into RGB vectors
 """
 function get_RGB_vect(controls)
-    R = controls[:,:,1]
-    G = controls[:,:,2]
-    B = controls[:,:,3]
+    R = controls[:, :, 1]
+    G = controls[:, :, 2]
+    B = controls[:, :, 3]
     if size(R) == size(G) == size(B)
         n = size(R)[1]
         m = size(R)[2]
@@ -977,11 +988,9 @@ function get_RGB_vect(controls)
         end
         return RGB_values
     else
-        return(RGB(1,0,0))
+        return (RGB(1, 0, 0))
     end
-
 end
-
 
 """
 Calculate Stage 1's objective function for all possible values of r.
