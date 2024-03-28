@@ -210,20 +210,23 @@ function run_stage_1_breakout(;
     return fig
 end
 
+"""
+Visualization. Run sweep over a set of perturbations for the attacker's cost functions. 
+"""
 function run_sweep(perturbations, k, perturbation_type; dr = 0.05)
     ps = [1/3, 1/3, 1/3]
     fig = Figure(size = (1300, 800))
     for perturbation in perturbations
-        # βs = [
-        #         [3.0 + perturbation, 2.0, 2.0], 
-        #         [2.0, 3.0, 2.0], 
-        #         [2.0, 2.0, 3.0]
-        #     ]
         βs = [
-            [2.0 + perturbation, 2.0, 2.0], 
-            [2.0, 2.0 + perturbation, 2.0], 
-            [2.0, 2.0, 2.0 + perturbation]
-        ]
+                [3.0 + perturbation, 2.0, 2.0], 
+                [2.0, 3.0, 2.0], 
+                [2.0, 2.0, 3.0]
+            ]
+        # βs = [
+        #     [2.0 + perturbation, 2.0, 2.0], 
+        #     [2.0, 2.0 + perturbation, 2.0], 
+        #     [2.0, 2.0, 2.0 + perturbation]
+        # ]
         Ks = calculate_stage_1_costs(ps, βs; dr)
         
         # Nasty but gets the job done
