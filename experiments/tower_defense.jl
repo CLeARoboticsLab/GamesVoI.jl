@@ -104,6 +104,430 @@ function solve_r(
 end
 
 """
+Project onto simplex using Fig. 1 Duchi 2008
+"""
+function project_onto_simplex(v; z = 1.0)
+    μ = sort(v, rev = true)
+    ρ = findfirst([μ[j] - 1 / j * (sum(μ[1:j]) - z) <= 0 for j in eachindex(v)])
+    ρ = isnothing(ρ) ? length(v) : ρ - 1
+    θ = 1 / ρ * (sum(μ[1:ρ]) - z)
+    return [maximum([v[i] - θ, 0]) for i in eachindex(v)]
+end
+
+"Defender cost function"
+function J_1(u, v, β)
+    -J_2(u, v, β)
+end
+
+"""
+Attacker cost function. Sigmoidal cost function with force multipliers
+
+Inputs: 
+    u: vector containing P1's (defender) strategy for each world.
+    v: vector containing P2's (attacker) strategy for each world.
+    β: vector containing P2's (attacker) preference parameters for each world.
+Outputs 
+    J_2: Attacker's cost function
+"""
+function J_2(u, v, β)
+    δ = [β[ii]*v[ii] - u[ii] for ii in eachindex(β)]
+    -sum([activate(δ[j])*(β[j]*v[j]-u[j])^2 for j in eachindex(β)])
+end
+
+"Activation function for attacker cost function"
+function activate(δ; k=10.0)
+    return 1/(1 + exp(-2 * δ * k))
+end
+
+"""
+Build parametric game for Stage 2. One single large game.
+
+Inputs: 
+    ps: prior distribution of k worlds for each signal, nx1 vector
+    βs: vector containing P1's cost parameters for each world. vector of nx1 vectors
+Outputs: 
+    parametric_game: ParametricGame object
+    fs: vector of symbolic expressions for each player's objective function
+
+"""
+function build_stage_2(ps, βs)
+    n = length(ps) # assume n_signals = n_worlds + 1
+    n_players = 1 + n^2
+
+    # Define Bayesian game player costs in Stage 2
+    p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * ps[w_idx] / (1 - θ' * ps)
+    fs = [
+        (x, θ) -> sum([
+            J_1(x[Block(1)], x[Block(w_idx + n + 1)], βs[w_idx]) * p_w_k_0(w_idx, θ) for
+            w_idx in 1:n
+        ]), # u|s¹=0 IPI
+        [
+            (x, θ) -> J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], βs[w_idx]) for
+            w_idx in 1:n
+        ]..., # u|s¹={1,2,3} PI
+        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], βs[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
+        [
+            (x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], βs[w_idx]) for
+            w_idx in 1:n
+        ]..., # v|s¹={1,2,3} PI
+    ]
+
+    # equality constraints   
+    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:n_players] # Everyone must attack/defend
+
+    # inequality constraints 
+    hs = [(x, θ) -> x[Block(i)] for i in 1:n_players] # All vars must be non-negative
+
+    # shared constraints
+    g̃ = (x, θ) -> [0]
+    h̃ = (x, θ) -> [0]
+
+    ParametricGame(;
+        objectives = fs,
+        equality_constraints = gs,
+        inequality_constraints = hs,
+        shared_equality_constraint = g̃,
+        shared_inequality_constraint = h̃,
+        parameter_dimension = 3,
+        primal_dimensions = [3 for _ in 1:n_players],
+        equality_dimensions = [1 for _ in 1:n_players],
+        inequality_dimensions = [3 for _ in 1:n_players],
+        shared_equality_dimension = 1,
+        shared_inequality_dimension = 1,
+    ),
+    fs
+end
+
+"""
+Build complete information parametric for Stage 2. Assumes 2 players, 3 signals, 3 worlds.
+"""
+function build_complete_info_game()
+    fs = [
+        (x, θ) -> J_1(x[Block(1)], x[Block(2)], θ)
+        (x, θ) -> J_2(x[Block(1)], x[Block(2)], θ)
+    ]
+    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:2]
+    hs = [(x, θ) -> x[Block(i)] for i in 1:2]
+    g̃ = (x, θ) -> [0]
+    h̃ = (x, θ) -> [0]
+
+    ParametricGame(;
+        objectives = fs,
+        equality_constraints = gs,
+        inequality_constraints = hs,
+        shared_equality_constraint = g̃,
+        shared_inequality_constraint = h̃,
+        parameter_dimension = 3,
+        primal_dimensions = [3, 3],
+        equality_dimensions = [1, 1],
+        inequality_dimensions = [3, 3],
+        shared_equality_dimension = 1,
+        shared_inequality_dimension = 1,
+    )
+end
+
+"""
+Build incomplete information parametric for Stage 2. Assumes 2 players, 3 signals, 3 worlds.
+"""
+function build_incomplete_info_game(ps, βs)
+    n = length(ps)# assume n_signals = n_worlds + 1
+    n_players = 1 + n
+
+    p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * ps[w_idx] / (1 - θ' * ps)
+    fs = [
+        (x, θ) -> sum([
+            p_w_k_0(w_idx, θ) * J_1(x[Block(1)], x[Block(w_idx + 1)], βs[w_idx]) for w_idx in 1:n
+        ]), # x^1(0, i)
+        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + 1)], βs[w_idx]) for w_idx in 1:n]...,
+    ]
+    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:n_players]
+    hs = [(x, θ) -> x[Block(i)] for i in 1:n_players]
+    g̃ = (x, θ) -> [0]
+    h̃ = (x, θ) -> [0]
+    
+    ParametricGame(;
+        objectives = fs,
+        equality_constraints = gs,
+        inequality_constraints = hs,
+        shared_equality_constraint = g̃,
+        shared_inequality_constraint = h̃,
+        parameter_dimension = 3,
+        primal_dimensions = [3 for _ in 1:n_players],
+        equality_dimensions = [1 for _ in 1:n_players],
+        inequality_dimensions = [3 for _ in 1:n_players],
+        shared_equality_dimension = 1,
+        shared_inequality_dimension = 1,
+    )
+end
+
+"""
+Compute Stage 1 objective
+
+Inputs: 
+    r: scout allocation
+    x: decision variables of Stage 2
+    ps: prior distribution of k worlds, nx1 vector
+    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
+Output: 
+    K: Stage 1's objective function value
+"""
+function compute_K(r, x, ps, βs)
+    n = length(ps)
+    sum([(1 - r[j]) * ps[j] * J_1(x[Block(1)], x[Block(j + n + 1)], βs[j]) for j in 1:n]) + sum([r[j] * ps[j] * J_1(x[Block(j + 1)], x[Block(j + 2 * n + 1)], βs[j]) for j in 1:n])
+end
+
+"""
+Compute incomplete information cost term for a single world
+Inputs: 
+    r: scout allocation
+    ps: prior distribution of k worlds, nx1 vector
+    r_i: scout allocation for world i
+    x_1_0: defender's decision for signal 0
+    x_2_0_i: attacker's decision for signal 0 and world i
+    ps_i: prior distribution of world i
+    βs_i: P2's cost parameters for world i
+Outputs: 
+    cost_term: incomplete info cost term for world i
+"""
+function compute_incomplete_info_cost_term_i(r, ps, r_i, x_1_0, x_2_0_i, ps_i, βs_i)
+    (1 - r_i) * ps_i / (1 - r' * ps) * J_1(x_1_0, x_2_0_i, βs_i)
+end
+
+function compute_P1_incomplete_info_cost(r, x_1_0, x_2_0s, ps, βs)
+    n = length(ps)
+    sum([compute_incomplete_info_cost_term_i(r, ps, r[i], x_1_0, x_2_0s[Block(i)], ps[i], βs[i]) for i in 1:n])
+end
+
+"""
+Compute derivative of Stage 1's objective function w.r.t. x
+"""
+function compute_dKdx(r, x, ps, βs)
+    gradient(x -> compute_K(r, x, ps, βs), x)[1]
+end
+
+"""
+Compute full derivative of Stage 1's objective function w.r.t. r
+
+Inputs: 
+    x: decision variables of Stage 2
+    ps: prior distribution of k worlds, nx1 vector
+
+Outputs: 
+    djdq: Jacobian of Stage 1's objective function w.r.t. r
+"""
+function compute_dKdr(r, x, ps, βs, game)
+    dKdx = compute_dKdx(r, x, ps, βs)
+    dKdr = gradient(r -> compute_K(r, x, ps, βs), r)[1]
+    dxdr = compute_dxdr(r, x, ps, βs, game)
+    n = length(ps)
+    for idx in 1:(1 + n^2)
+        dKdr += (dKdx[Block(idx)]' * dxdr[Block(idx)])'
+    end
+    dKdr
+end
+
+"""
+Solve stage 2 and return full derivative of objective function w.r.t. r 
+
+Inputs: 
+    r: scout allocation
+    ps: prior distribution of k worlds, nx1 vector
+    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
+
+Outputs:
+    dxdr: Blocked Jacobian of Stage 2's decision variables w.r.t. Stage 1's decision variable
+"""
+function compute_dxdr(r, x, ps, βs, game; verbose = false)
+    n = length(ps)
+    n_players = 1 + n^2
+    var_dim = n 
+
+    # Return Jacobian
+    dxdr = jacobian(
+        r -> solve(
+            game,
+            r;
+            initial_guess = vcat(x, zeros(total_dim(game) - n_players * var_dim)),
+            verbose = false,
+            return_primals = false,
+        ).variables[1:(n_players * var_dim)],
+        r,
+    )[1]
+
+    BlockArray(dxdr, [var_dim for _ in 1:n_players], [var_dim])
+end
+
+"""
+Compute Stage 2 decision variables given r using PATH
+
+Input: 
+    r: scout allocation
+    ps: prior distribution of k worlds, nx1 vector
+Output: 
+    x: decision variables of Stage 2 given r. BlockedArray with a block per player
+"""
+function compute_stage_2(
+    r,
+    ps,
+    βs,
+    complete_info_game,
+    incomplete_info_game;
+    initial_guess = nothing,
+    verbose = false,
+)
+    num_worlds = length(ps) # assume n_signals = n_worlds + 1
+    n_players = 1 + num_worlds^2
+    var_dim = num_worlds # TODO: Change this to be more general
+
+    solution_complete = [
+        solve(
+            complete_info_game,
+            β;
+            initial_guess = isnothing(initial_guess) ?
+                            1 / 3 * ones(total_dim(complete_info_game)) : initial_guess,
+            verbose,
+            return_primals = true,
+        ) for β in βs
+    ]
+
+    solution_incomplete = solve(
+        incomplete_info_game,
+        r;
+        initial_guess = isnothing(initial_guess) ?
+                        1 / 3 * ones(total_dim(incomplete_info_game)) : initial_guess,
+        verbose,
+        return_primals = true,
+    )
+
+    return BlockArray(
+        vcat(
+            solution_incomplete.variables[1:var_dim],
+            [solution_complete[i].variables[1:var_dim] for i in 1:num_worlds]...,
+            solution_incomplete.variables[(var_dim + 1):((num_worlds + 1) * var_dim)],
+            [solution_complete[i].variables[(var_dim + 1):(2 * var_dim)] for i in 1:num_worlds]...,
+        ),
+        [var_dim for _ in 1:n_players],
+    )
+end
+
+struct IBRGameSolver end
+
+"""
+Compute Stage 2 decision variables using Iterative Best Response
+
+Inputs: 
+    r: scout allocation
+    ps: prior distribution of k worlds, nx1 vector
+    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
+    Js: vector containing P1 and P2's cost functions
+Outputs:
+    x: decision variables of Stage 2 given r. BlockedArray with a block per player
+"""
+function compute_stage_2(
+    ::IBRGameSolver,
+    r,
+    ps,
+    βs,
+    Js;
+    initial_guess = nothing,
+    max_ibr_rounds = 100,
+    ibr_convergence_tolerance = 1e-3,
+    verbose = false,
+)
+    num_worlds = length(ps) # assume n_signals = n_worlds + 1
+    total_num_vars = num_worlds + 1 + 2*num_worlds
+    if isnothing(initial_guess)
+        x = 1/3 * ones((num_worlds + 1) * num_worlds + 2 * num_worlds^2)
+    else
+        x = initial_guess
+    end
+    x = BlockArray(x, [num_worlds for _ in 1:total_num_vars])
+
+    # Solve complete information games
+    for world_idx in 1:num_worlds        
+        β = βs[world_idx]
+        x_1 = x[Block(1 + world_idx)]
+        x_2 = x[Block(1 + 2 * num_worlds + world_idx)]
+        for i_ibr in 1:max_ibr_rounds
+            last_solution = [x_1, x_2]
+            x_1 = gradient_play(x_1 -> Js[1](x_1, x_2, β), x_1; verbose)
+            x_2 = gradient_play(x_2 -> Js[2](x_1, x_2, β), x_2; verbose)
+            converged = norm([x_1, x_2] - last_solution) < ibr_convergence_tolerance
+            if converged
+                verbose && @info "World $world_idx complete info. game converged after $i_ibr IBR iterations"
+                break
+            end
+        end
+        x[Block(1 + world_idx)] = x_1
+        x[Block(1 + 2 * num_worlds + world_idx)] = x_2
+    end
+
+    # Solve incomplete information game
+    x_1_0  = x[Block(1)]
+    x_2_0s = BlockArray(
+        x[((1 + num_worlds) * num_worlds + 1):((1 + num_worlds) * num_worlds + num_worlds * num_worlds)], # P2, s = 0
+        [num_worlds for _ in 1:num_worlds],
+    )
+    for i_ibr in 1:max_ibr_rounds
+        last_solution = vcat(x_1_0, x_2_0s)
+        x_1_0 = gradient_play(
+            x_1_0 -> compute_P1_incomplete_info_cost(r, x_1_0, x_2_0s, ps, βs),
+            x_1_0;
+            verbose,
+        )
+        for world_idx in 1:num_worlds
+            x_2_0s[Block(world_idx)] = gradient_play(
+                x_2_0s -> Js[2](x_1_0, x_2_0s, βs[world_idx]),
+                x_2_0s[Block(world_idx)];
+                verbose,
+            )
+        end
+        converged = norm(vcat(x_1_0, x_2_0s) - last_solution) < ibr_convergence_tolerance
+        if converged
+            verbose && @info "Incomplete complete info. game converged after $i_ibr IBR iterations"
+            break
+        end
+    end
+    x[Block(1)] = x_1_0
+    for world_idx in 1:num_worlds
+        x[Block(1 + num_worlds + world_idx)] = x_2_0s[Block(world_idx)]
+    end
+    return x
+end
+
+"""
+Gradient descent while projecting onto the simplex
+
+Input: 
+    cost_function: function to minimize
+    x: initial guess
+Output: 
+    x: minimizer of cost_function
+"""
+function gradient_play(cost_function, x; max_iter = 200, α = 0.05, tol = 1e-3, verbose = false, text = nothing)
+
+    iter = 0
+    x_prev = x
+    while iter < max_iter
+        x_prev = x
+        dJdx = gradient(x -> cost_function(x), x)[1]
+        x_temp = x - α .* dJdx
+        x = project_onto_simplex(x_temp)
+        iter += 1
+        if (norm(x - x_prev) < tol)
+            verbose && @info "  Gradient descent converged after $iter iterations"
+            return x
+        end
+    end
+    @warn "  Gradient descent did not converge after $max_iter iterations"
+    return x
+end
+
+# --------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------- VISUALIZATION ----------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------
+
+"""
 Visualization. Calculate and plot Stage 1 cost as a function of r for a given prior distribution and attacker preference.
 """
 function run_visualization()
@@ -602,425 +1026,4 @@ function display_surface(ps, Ks)
 
     save("figures/stage_1_surface.png", fig)
     fig
-end
-
-"""
-Project onto simplex using Fig. 1 Duchi 2008
-"""
-function project_onto_simplex(v; z = 1.0)
-    μ = sort(v, rev = true)
-    ρ = findfirst([μ[j] - 1 / j * (sum(μ[1:j]) - z) <= 0 for j in eachindex(v)])
-    ρ = isnothing(ρ) ? length(v) : ρ - 1
-    θ = 1 / ρ * (sum(μ[1:ρ]) - z)
-    return [maximum([v[i] - θ, 0]) for i in eachindex(v)]
-end
-
-"Defender cost function"
-function J_1(u, v, β)
-    -J_2(u, v, β)
-end
-
-"""
-Attacker cost function. Sigmoidal cost function with force multipliers
-
-Inputs: 
-    u: vector containing P1's (defender) strategy for each world.
-    v: vector containing P2's (attacker) strategy for each world.
-    β: vector containing P2's (attacker) preference parameters for each world.
-Outputs 
-    J_2: Attacker's cost function
-"""
-function J_2(u, v, β)
-    δ = [β[ii]*v[ii] - u[ii] for ii in eachindex(β)]
-    -sum([activate(δ[j])*(β[j]*v[j]-u[j])^2 for j in eachindex(β)])
-end
-
-"Activation function for attacker cost function"
-function activate(δ; k=10.0)
-    return 1/(1 + exp(-2 * δ * k))
-end
-
-"""
-Build parametric game for Stage 2.
-
-Inputs: 
-    ps: prior distribution of k worlds for each signal, nx1 vector
-    βs: vector containing P1's cost parameters for each world. vector of nx1 vectors
-Outputs: 
-    parametric_game: ParametricGame object
-    fs: vector of symbolic expressions for each player's objective function
-
-"""
-function build_stage_2(ps, βs)
-    n = length(ps) # assume n_signals = n_worlds + 1
-    n_players = 1 + n^2
-
-    # Define Bayesian game player costs in Stage 2
-    p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * ps[w_idx] / (1 - θ' * ps)
-    fs = [
-        (x, θ) -> sum([
-            J_1(x[Block(1)], x[Block(w_idx + n + 1)], βs[w_idx]) * p_w_k_0(w_idx, θ) for
-            w_idx in 1:n
-        ]), # u|s¹=0 IPI
-        [
-            (x, θ) -> J_1(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], βs[w_idx]) for
-            w_idx in 1:n
-        ]..., # u|s¹={1,2,3} PI
-        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + n + 1)], βs[w_idx]) for w_idx in 1:n]...,  # v|s¹=0 IPI
-        [
-            (x, θ) -> J_2(x[Block(w_idx + 1)], x[Block(w_idx + 2 * n + 1)], βs[w_idx]) for
-            w_idx in 1:n
-        ]..., # v|s¹={1,2,3} PI
-    ]
-
-    # equality constraints   
-    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:n_players] # Everyone must attack/defend
-
-    # inequality constraints 
-    hs = [(x, θ) -> x[Block(i)] for i in 1:n_players] # All vars must be non-negative
-
-    # shared constraints
-    g̃ = (x, θ) -> [0]
-    h̃ = (x, θ) -> [0]
-
-    ParametricGame(;
-        objectives = fs,
-        equality_constraints = gs,
-        inequality_constraints = hs,
-        shared_equality_constraint = g̃,
-        shared_inequality_constraint = h̃,
-        parameter_dimension = 3,
-        primal_dimensions = [3 for _ in 1:n_players],
-        equality_dimensions = [1 for _ in 1:n_players],
-        inequality_dimensions = [3 for _ in 1:n_players],
-        shared_equality_dimension = 1,
-        shared_inequality_dimension = 1,
-    ),
-    fs
-end
-
-"""
-Build complete information parametric for Stage 2. Assumes 2 players, 3 signals, 3 worlds.
-"""
-function build_complete_info_game()
-    fs = [
-        (x, θ) -> J_1(x[Block(1)], x[Block(2)], θ)
-        (x, θ) -> J_2(x[Block(1)], x[Block(2)], θ)
-    ]
-    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:2]
-    hs = [(x, θ) -> x[Block(i)] for i in 1:2]
-    g̃ = (x, θ) -> [0]
-    h̃ = (x, θ) -> [0]
-
-    ParametricGame(;
-        objectives = fs,
-        equality_constraints = gs,
-        inequality_constraints = hs,
-        shared_equality_constraint = g̃,
-        shared_inequality_constraint = h̃,
-        parameter_dimension = 3,
-        primal_dimensions = [3, 3],
-        equality_dimensions = [1, 1],
-        inequality_dimensions = [3, 3],
-        shared_equality_dimension = 1,
-        shared_inequality_dimension = 1,
-    )
-end
-
-"""
-Build incomplete information parametric for Stage 2. Assumes 2 players, 3 signals, 3 worlds.
-"""
-function build_incomplete_info_game(ps, βs)
-    n = length(ps)# assume n_signals = n_worlds + 1
-    n_players = 1 + n
-
-    p_w_k_0(w_idx, θ) = (1 - θ[w_idx]) * ps[w_idx] / (1 - θ' * ps)
-    fs = [
-        (x, θ) -> sum([
-            p_w_k_0(w_idx, θ) * J_1(x[Block(1)], x[Block(w_idx + 1)], βs[w_idx]) for w_idx in 1:n
-        ]), # x^1(0, i)
-        [(x, θ) -> J_2(x[Block(1)], x[Block(w_idx + 1)], βs[w_idx]) for w_idx in 1:n]...,
-    ]
-    gs = [(x, θ) -> [sum(x[Block(i)]) - 1] for i in 1:n_players]
-    hs = [(x, θ) -> x[Block(i)] for i in 1:n_players]
-    g̃ = (x, θ) -> [0]
-    h̃ = (x, θ) -> [0]
-    
-    ParametricGame(;
-        objectives = fs,
-        equality_constraints = gs,
-        inequality_constraints = hs,
-        shared_equality_constraint = g̃,
-        shared_inequality_constraint = h̃,
-        parameter_dimension = 3,
-        primal_dimensions = [3 for _ in 1:n_players],
-        equality_dimensions = [1 for _ in 1:n_players],
-        inequality_dimensions = [3 for _ in 1:n_players],
-        shared_equality_dimension = 1,
-        shared_inequality_dimension = 1,
-    )
-end
-
-
-"""
-Compute Stage 1 objective
-
-Inputs: 
-    r: scout allocation
-    x: decision variables of Stage 2
-    ps: prior distribution of k worlds, nx1 vector
-    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
-Output: 
-    K: Stage 1's objective function value
-"""
-function compute_K(r, x, ps, βs)
-    n = length(ps)
-    sum([(1 - r[j]) * ps[j] * J_1(x[Block(1)], x[Block(j + n + 1)], βs[j]) for j in 1:n]) + sum([r[j] * ps[j] * J_1(x[Block(j + 1)], x[Block(j + 2 * n + 1)], βs[j]) for j in 1:n])
-end
-
-"""
-Compute incomplete information cost term for a single world
-Inputs: 
-    r: scout allocation
-    ps: prior distribution of k worlds, nx1 vector
-    r_i: scout allocation for world i
-    x_1_0: defender's decision for signal 0
-    x_2_0_i: attacker's decision for signal 0 and world i
-    ps_i: prior distribution of world i
-    βs_i: P2's cost parameters for world i
-Outputs: 
-    cost_term: incomplete info cost term for world i
-"""
-function compute_incomplete_info_cost_term_i(r, ps, r_i, x_1_0, x_2_0_i, ps_i, βs_i)
-    (1 - r_i) * ps_i / (1 - r' * ps) * J_1(x_1_0, x_2_0_i, βs_i)
-end
-
-function compute_P1_incomplete_info_cost(r, x_1_0, x_2_0s, ps, βs)
-    n = length(ps)
-    sum([compute_incomplete_info_cost_term_i(r, ps, r[i], x_1_0, x_2_0s[Block(i)], ps[i], βs[i]) for i in 1:n])
-end
-
-"""
-Compute derivative of Stage 1's objective function w.r.t. x
-"""
-function compute_dKdx(r, x, ps, βs)
-    gradient(x -> compute_K(r, x, ps, βs), x)[1]
-end
-
-"""
-Compute full derivative of Stage 1's objective function w.r.t. r
-
-Inputs: 
-    x: decision variables of Stage 2
-    ps: prior distribution of k worlds, nx1 vector
-
-Outputs: 
-    djdq: Jacobian of Stage 1's objective function w.r.t. r
-"""
-function compute_dKdr(r, x, ps, βs, game)
-    dKdx = compute_dKdx(r, x, ps, βs)
-    dKdr = gradient(r -> compute_K(r, x, ps, βs), r)[1]
-    dxdr = compute_dxdr(r, x, ps, βs, game)
-    n = length(ps)
-    for idx in 1:(1 + n^2)
-        dKdr += (dKdx[Block(idx)]' * dxdr[Block(idx)])'
-    end
-    dKdr
-end
-
-"""
-Solve stage 2 and return full derivative of objective function w.r.t. r 
-
-Inputs: 
-    r: scout allocation
-    ps: prior distribution of k worlds, nx1 vector
-    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
-
-Outputs:
-    dxdr: Blocked Jacobian of Stage 2's decision variables w.r.t. Stage 1's decision variable
-"""
-function compute_dxdr(r, x, ps, βs, game; verbose = false)
-    n = length(ps)
-    n_players = 1 + n^2
-    var_dim = n 
-
-    # Return Jacobian
-    dxdr = jacobian(
-        r -> solve(
-            game,
-            r;
-            initial_guess = vcat(x, zeros(total_dim(game) - n_players * var_dim)),
-            verbose = false,
-            return_primals = false,
-        ).variables[1:(n_players * var_dim)],
-        r,
-    )[1]
-
-    BlockArray(dxdr, [var_dim for _ in 1:n_players], [var_dim])
-end
-
-"""
-Return Stage 2 decision variables given scout allocation r
-
-Input: 
-    r: scout allocation
-    ps: prior distribution of k worlds, nx1 vector
-Output: 
-    x: decision variables of Stage 2 given r. BlockedArray with a block per player
-"""
-function compute_stage_2(
-    r,
-    ps,
-    βs,
-    complete_info_game,
-    incomplete_info_game;
-    initial_guess = nothing,
-    verbose = false,
-)
-    num_worlds = length(ps) # assume n_signals = n_worlds + 1
-    n_players = 1 + num_worlds^2
-    var_dim = num_worlds # TODO: Change this to be more general
-
-    solution_complete = [
-        solve(
-            complete_info_game,
-            β;
-            initial_guess = isnothing(initial_guess) ?
-                            1 / 3 * ones(total_dim(complete_info_game)) : initial_guess,
-            verbose,
-            return_primals = true,
-        ) for β in βs
-    ]
-
-    solution_incomplete = solve(
-        incomplete_info_game,
-        r;
-        initial_guess = isnothing(initial_guess) ?
-                        1 / 3 * ones(total_dim(incomplete_info_game)) : initial_guess,
-        verbose,
-        return_primals = true,
-    )
-
-    return BlockArray(
-        vcat(
-            solution_incomplete.variables[1:var_dim],
-            [solution_complete[i].variables[1:var_dim] for i in 1:num_worlds]...,
-            solution_incomplete.variables[(var_dim + 1):((num_worlds + 1) * var_dim)],
-            [solution_complete[i].variables[(var_dim + 1):(2 * var_dim)] for i in 1:num_worlds]...,
-        ),
-        [var_dim for _ in 1:n_players],
-    )
-end
-
-struct IBRGameSolver end
-
-"""
-Compute Stage 2 decision variables using Iterative Best Response
-
-Inputs: 
-    r: scout allocation
-    ps: prior distribution of k worlds, nx1 vector
-    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
-    Js: vector containing P1 and P2's cost functions
-Outputs:
-    x: decision variables of Stage 2 given r. BlockedArray with a block per player
-"""
-function compute_stage_2(
-    ::IBRGameSolver,
-    r,
-    ps,
-    βs,
-    Js;
-    initial_guess = nothing,
-    max_ibr_rounds = 100,
-    ibr_convergence_tolerance = 1e-3,
-    verbose = false,
-)
-    num_worlds = length(ps) # assume n_signals = n_worlds + 1
-    total_num_vars = num_worlds + 1 + 2*num_worlds
-    if isnothing(initial_guess)
-        x = 1/3 * ones((num_worlds + 1) * num_worlds + 2 * num_worlds^2)
-    else
-        x = initial_guess
-    end
-    x = BlockArray(x, [num_worlds for _ in 1:total_num_vars])
-
-    # Solve complete information games
-    for world_idx in 1:num_worlds        
-        β = βs[world_idx]
-        x_1 = x[Block(1 + world_idx)]
-        x_2 = x[Block(1 + 2 * num_worlds + world_idx)]
-        for i_ibr in 1:max_ibr_rounds
-            last_solution = [x_1, x_2]
-            x_1 = gradient_play(x_1 -> Js[1](x_1, x_2, β), x_1; verbose)
-            x_2 = gradient_play(x_2 -> Js[2](x_1, x_2, β), x_2; verbose)
-            converged = norm([x_1, x_2] - last_solution) < ibr_convergence_tolerance
-            if converged
-                verbose && @info "World $world_idx complete info. game converged after $i_ibr IBR iterations"
-                break
-            end
-        end
-        x[Block(1 + world_idx)] = x_1
-        x[Block(1 + 2 * num_worlds + world_idx)] = x_2
-    end
-
-    # Solve incomplete information game
-    x_1_0  = x[Block(1)]
-    x_2_0s = BlockArray(
-        x[((1 + num_worlds) * num_worlds + 1):((1 + num_worlds) * num_worlds + num_worlds * num_worlds)], # P2, s = 0
-        [num_worlds for _ in 1:num_worlds],
-    )
-    for i_ibr in 1:max_ibr_rounds
-        last_solution = vcat(x_1_0, x_2_0s)
-        x_1_0 = gradient_play(
-            x_1_0 -> compute_P1_incomplete_info_cost(r, x_1_0, x_2_0s, ps, βs),
-            x_1_0;
-            verbose,
-        )
-        for world_idx in 1:num_worlds
-            x_2_0s[Block(world_idx)] = gradient_play(
-                x_2_0s -> Js[2](x_1_0, x_2_0s, βs[world_idx]),
-                x_2_0s[Block(world_idx)];
-                verbose,
-            )
-        end
-        converged = norm(vcat(x_1_0, x_2_0s) - last_solution) < ibr_convergence_tolerance
-        if converged
-            verbose && @info "Incomplete complete info. game converged after $i_ibr IBR iterations"
-            break
-        end
-    end
-    x[Block(1)] = x_1_0
-    for world_idx in 1:num_worlds
-        x[Block(1 + num_worlds + world_idx)] = x_2_0s[Block(world_idx)]
-    end
-    return x
-end
-
-"""
-Gradient descent while projecting onto the simplex
-
-Input: 
-    cost_function: function to minimize
-    x: initial guess
-Output: 
-    x: minimizer of cost_function
-"""
-function gradient_play(cost_function, x; max_iter = 200, α = 0.05, tol = 1e-3, verbose = false, text = nothing)
-
-    iter = 0
-    x_prev = x
-    while iter < max_iter
-        x_prev = x
-        dJdx = gradient(x -> cost_function(x), x)[1]
-        x_temp = x - α .* dJdx
-        x = project_onto_simplex(x_temp)
-        iter += 1
-        if (norm(x - x_prev) < tol)
-            verbose && @info "  Gradient descent converged after $iter iterations"
-            return x
-        end
-    end
-    @warn "  Gradient descent did not converge after $max_iter iterations"
-    return x
 end
