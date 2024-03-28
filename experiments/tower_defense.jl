@@ -24,21 +24,64 @@ using GLMakie:
 using FileIO
 using LaTeXStrings
 
-""" Nomenclature
-    N                         : Number of worlds (=3)
-    ps = [P(w₁),..., P(wₙ)]  : prior distribution of k worlds for each signal, nx1 vector
-    βs                        : vector containing P2's cost parameters for each world. vector of nx1 vectors
-    x[Block(1)]               : u(0), P1's action given signal s¹=0 depends on r
-    x[Block(2)]               : u(1), P1's action given signal s¹=1
-    x[Block(3)]               : u(2), P1's action given signal s¹=2
-    x[Block(4)]               : u(3), P1's action given signal s¹=3
-    x[Block(5)] ~ x[Block(7)] : v(wₖ, 0), P2's action for each worlds given signal s¹=0 depends on r
-    x[Block(8)]               : v(wₖ, 1), P2's action for world 1 given signal s¹=1
-    x[Block(9)]               : v(wₖ, 2), P2's action for world 2 given signal s¹=2
-    x[Block(10)]              : v(wₖ, 3), P2's action for world 3 given signal s¹=3
-    θ = rₖ = [r₁, ... , rₙ]   : r, Scout allocation in each direction 
-    J                         : Stage 1's objective function  
+# --------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------- INTRO/GUIDE ------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------
+
+# This script contains the code for the tower defense game. It is organized as follows:
+# 1. Costs: Contains the cost functions for the tower defense game
+# 2. Stage 1 Solver: Contains the code for solving the Stage 1 optimization problem
+# 3. Stage 2 Solver: Contains the code for solving the Stage 2 optimization problem
+# 4. Visualization: Contains the code for visualizing the results of the optimization problem
+# In this problem we assume that there are 3 worlds and 3 signals. In Stage 2 there are 3 possible directions of attack
+
+# Nomenclature for tower defense game
+#     N                         : Number of worlds (=3)
+#     ps = [P(w₁),..., P(wₙ)]  : prior distribution of k worlds for each signal, nx1 vector
+#     βs                        : vector containing P2's cost parameters for each world. vector of nx1 vectors
+#     x[Block(1)]               : u(0), P1's action given signal s¹=0 depends on r
+#     x[Block(2)]               : u(1), P1's action given signal s¹=1
+#     x[Block(3)]               : u(2), P1's action given signal s¹=2
+#     x[Block(4)]               : u(3), P1's action given signal s¹=3
+#     x[Block(5)] ~ x[Block(7)] : v(wₖ, 0), P2's action for each worlds given signal s¹=0 depends on r
+#     x[Block(8)]               : v(wₖ, 1), P2's action for world 1 given signal s¹=1
+#     x[Block(9)]               : v(wₖ, 2), P2's action for world 2 given signal s¹=2
+#     x[Block(10)]              : v(wₖ, 3), P2's action for world 3 given signal s¹=3
+#     θ = rₖ = [r₁, ... , rₙ]   : r, Scout allocation in each direction 
+#     J                         : Stage 1's objective function  
+
+# --------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------- TOWER DEFENSE COSTS-----------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------
+
+"Defender cost function"
+function J_1(u, v, β)
+    -J_2(u, v, β)
+end
+
 """
+Attacker cost function. Sigmoidal cost function with force multipliers
+
+Inputs: 
+    u: vector containing P1's (defender) strategy for each world.
+    v: vector containing P2's (attacker) strategy for each world.
+    β: vector containing P2's (attacker) preference parameters for each world.
+Outputs 
+    J_2: Attacker's cost function
+"""
+function J_2(u, v, β)
+    δ = [β[ii]*v[ii] - u[ii] for ii in eachindex(β)]
+    -sum([activate(δ[j])*(β[j]*v[j]-u[j])^2 for j in eachindex(β)])
+end
+
+"Activation function for attacker cost function"
+function activate(δ; k=10.0)
+    return 1/(1 + exp(-2 * δ * k))
+end
+
+# --------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------- STAGE 1 SOLVER ---------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------
 
 """
 Solve Stage 1 to find optimal scout allocation r.
@@ -49,6 +92,8 @@ Inputs:
     r_init: initial guess scout allocation
 Outputs:
     r: optimal scout allocation
+
+TODO: Instead of using one large game, use the complete/incomplete information games
 """
 function solve_r(
     ps,
@@ -114,30 +159,68 @@ function project_onto_simplex(v; z = 1.0)
     return [maximum([v[i] - θ, 0]) for i in eachindex(v)]
 end
 
-"Defender cost function"
-function J_1(u, v, β)
-    -J_2(u, v, β)
+"""
+Compute derivative of Stage 1's objective function w.r.t. x
+"""
+function compute_dKdx(r, x, ps, βs)
+    gradient(x -> compute_K(r, x, ps, βs), x)[1]
 end
 
 """
-Attacker cost function. Sigmoidal cost function with force multipliers
+Compute full derivative of Stage 1's objective function w.r.t. r
 
 Inputs: 
-    u: vector containing P1's (defender) strategy for each world.
-    v: vector containing P2's (attacker) strategy for each world.
-    β: vector containing P2's (attacker) preference parameters for each world.
-Outputs 
-    J_2: Attacker's cost function
+    x: decision variables of Stage 2
+    ps: prior distribution of k worlds, nx1 vector
+
+Outputs: 
+    djdq: Jacobian of Stage 1's objective function w.r.t. r
 """
-function J_2(u, v, β)
-    δ = [β[ii]*v[ii] - u[ii] for ii in eachindex(β)]
-    -sum([activate(δ[j])*(β[j]*v[j]-u[j])^2 for j in eachindex(β)])
+function compute_dKdr(r, x, ps, βs, game)
+    dKdx = compute_dKdx(r, x, ps, βs)
+    dKdr = gradient(r -> compute_K(r, x, ps, βs), r)[1]
+    dxdr = compute_dxdr(r, x, ps, βs, game)
+    n = length(ps)
+    for idx in 1:(1 + n^2)
+        dKdr += (dKdx[Block(idx)]' * dxdr[Block(idx)])'
+    end
+    dKdr
 end
 
-"Activation function for attacker cost function"
-function activate(δ; k=10.0)
-    return 1/(1 + exp(-2 * δ * k))
+"""
+Solve stage 2 and return full derivative of objective function w.r.t. r 
+
+Inputs: 
+    r: scout allocation
+    ps: prior distribution of k worlds, nx1 vector
+    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
+
+Outputs:
+    dxdr: Blocked Jacobian of Stage 2's decision variables w.r.t. Stage 1's decision variable
+"""
+function compute_dxdr(r, x, ps, βs, game; verbose = false)
+    n = length(ps)
+    n_players = 1 + n^2
+    var_dim = n 
+
+    # Return Jacobian
+    dxdr = jacobian(
+        r -> solve(
+            game,
+            r;
+            initial_guess = vcat(x, zeros(total_dim(game) - n_players * var_dim)),
+            verbose = false,
+            return_primals = false,
+        ).variables[1:(n_players * var_dim)],
+        r,
+    )[1]
+
+    BlockArray(dxdr, [var_dim for _ in 1:n_players], [var_dim])
 end
+
+# --------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------- STAGE 2 SOLVER ---------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------
 
 """
 Build parametric game for Stage 2. One single large game.
@@ -298,64 +381,6 @@ function compute_P1_incomplete_info_cost(r, x_1_0, x_2_0s, ps, βs)
     sum([compute_incomplete_info_cost_term_i(r, ps, r[i], x_1_0, x_2_0s[Block(i)], ps[i], βs[i]) for i in 1:n])
 end
 
-"""
-Compute derivative of Stage 1's objective function w.r.t. x
-"""
-function compute_dKdx(r, x, ps, βs)
-    gradient(x -> compute_K(r, x, ps, βs), x)[1]
-end
-
-"""
-Compute full derivative of Stage 1's objective function w.r.t. r
-
-Inputs: 
-    x: decision variables of Stage 2
-    ps: prior distribution of k worlds, nx1 vector
-
-Outputs: 
-    djdq: Jacobian of Stage 1's objective function w.r.t. r
-"""
-function compute_dKdr(r, x, ps, βs, game)
-    dKdx = compute_dKdx(r, x, ps, βs)
-    dKdr = gradient(r -> compute_K(r, x, ps, βs), r)[1]
-    dxdr = compute_dxdr(r, x, ps, βs, game)
-    n = length(ps)
-    for idx in 1:(1 + n^2)
-        dKdr += (dKdx[Block(idx)]' * dxdr[Block(idx)])'
-    end
-    dKdr
-end
-
-"""
-Solve stage 2 and return full derivative of objective function w.r.t. r 
-
-Inputs: 
-    r: scout allocation
-    ps: prior distribution of k worlds, nx1 vector
-    βs: vector containing P2's cost parameters for each world. vector of nx1 vectors
-
-Outputs:
-    dxdr: Blocked Jacobian of Stage 2's decision variables w.r.t. Stage 1's decision variable
-"""
-function compute_dxdr(r, x, ps, βs, game; verbose = false)
-    n = length(ps)
-    n_players = 1 + n^2
-    var_dim = n 
-
-    # Return Jacobian
-    dxdr = jacobian(
-        r -> solve(
-            game,
-            r;
-            initial_guess = vcat(x, zeros(total_dim(game) - n_players * var_dim)),
-            verbose = false,
-            return_primals = false,
-        ).variables[1:(n_players * var_dim)],
-        r,
-    )[1]
-
-    BlockArray(dxdr, [var_dim for _ in 1:n_players], [var_dim])
-end
 
 """
 Compute Stage 2 decision variables given r using PATH
