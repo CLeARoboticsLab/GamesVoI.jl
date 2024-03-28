@@ -381,7 +381,7 @@ Output:
 function display_stage_1_costs(costs, ps)
     rs = 0:(1 / (size(costs[1])[1] - 1)):1
     num_worlds = length(ps)
-    fig = Figure(size = (1500, 800), title = "test")
+    fig = Figure(size = (900, 700), title = "test", fontsize = 22)
     max_value = 1.0
     axs = [
         [
@@ -389,15 +389,14 @@ function display_stage_1_costs(costs, ps)
                 fig[1, world_idx],
                 aspect = (1, 1, 1),
                 perspectiveness = 0.5,
-                elevation = pi / 5,
+                elevation = pi / 9,
                 azimuth = -π * (1 / 2 + 1 / 4),
                 zgridcolor = :grey,
                 ygridcolor = :grey,
                 xgridcolor = :grey;
                 xlabel = "r₁",
                 ylabel = "r₂",
-                zlabel = "Cost",
-                title = "World $world_idx",
+                title = L"\mathbf{r}_{%$world_idx} p(\omega_{%$world_idx})J^1(...)",
                 limits = (nothing, nothing, (0.01, max_value)),
             ) for world_idx in 1:num_worlds
         ],
@@ -413,8 +412,7 @@ function display_stage_1_costs(costs, ps)
                 xgridcolor = :grey;
                 xlabel = "r₁",
                 ylabel = "r₂",
-                zlabel = "Cost",
-                title = "World $world_idx",
+                title = L"(1 - \mathbf{r}_{%$world_idx}) p(\omega_{%$world_idx})J^1(...)",
                 limits = (nothing, nothing, (0.01, max_value)),
             ) for world_idx in 1:num_worlds
         ],
@@ -428,10 +426,7 @@ function display_stage_1_costs(costs, ps)
             colormap = :viridis,
             colorrange = (0, max_value),
         )
-        # text!(axs[world_idx], "$(round(ps[1], digits=2))", position = (0.9, 0.4, cost_min), font = "Bold")
-        # text!(axs[world_idx], "$(round(ps[2], digits=2))", position = (0.1, 0.95, cost_min), font = "Bold")
-        # text!(axs[world_idx], "$(round(ps[3], digits=2))", position = (0.2, 0.1, cost_min), font = "Bold")
-
+        hidezdecorations!(axs[1][world_idx]; ticklabels = false, ticks = false, grid = false)
     end
     for world_idx in 1:num_worlds
         hmap = surface!(
@@ -442,58 +437,10 @@ function display_stage_1_costs(costs, ps)
             colormap = :viridis,
             colorrange = (0, max_value),
         )
-        # text!(axs[world_idx], "$(round(ps[1], digits=2))", position = (0.9, 0.4, cost_min), font = "Bold")
-        # text!(axs[world_idx], "$(round(ps[2], digits=2))", position = (0.1, 0.95, cost_min), font = "Bold")
-        # text!(axs[world_idx], "$(round(ps[3], digits=2))", position = (0.2, 0.1, cost_min), font = "Bold")
-
-        if world_idx == num_worlds
-            Colorbar(
-                fig[1:2, num_worlds + 1],
-                hmap;
-                label = "Cost",
-                width = 15,
-                ticksize = 15,
-                tickalign = 1,
-            )
-        end
+        hidezdecorations!(axs[2][world_idx]; ticklabels = false, ticks = false, grid = false)
     end
+
     save("figures/stage_1_costs.png", fig)
-    fig
-end
-
-
-function display_residuals(costs, ps)
-    rs = 0:(1 / (size(costs[1])[1] - 1)):1
-    num_worlds = length(ps)
-    fig = Figure(size = (1500, 500), title = "test")
-    axs = [
-        Axis3(
-            fig[1, world_idx],
-            aspect = (1, 1, 1),
-            perspectiveness = 0.5,
-            elevation = pi / 5,
-            azimuth = -π * (1 / 2 + 1 / 4),
-            zgridcolor = :grey,
-            ygridcolor = :grey,
-            xgridcolor = :grey;
-            xlabel = "r₁",
-            ylabel = "r₂",
-            zlabel = "Residual",
-            title = "World $world_idx",
-            # limits = (nothing, nothing, (0.01, 1)),
-        ) for world_idx in 1:num_worlds
-    ]
-    for world_idx in 1:num_worlds
-        hmap = surface!(
-            axs[world_idx],
-            rs,
-            rs,
-            costs[world_idx],
-            colormap = :viridis,
-            # colorrange = (0, 1),
-        )
-
-    end
     fig
 end
 
@@ -508,96 +455,58 @@ Output:
 function display_stage_1_costs_controls(costs, controls, ps)
     rs = 0:(1 / (size(costs[1])[1] - 1)):1
     num_worlds = length(ps)
-    fig = Figure(size = (800, 500), title = "test")
-    max_value = 1.0
+    fig = Figure(size = (600, 400), title = "test")
     axs = [
         [
-            Axis3(
+            Axis(
                 fig[1, world_idx],
-                aspect = (1, 1, 1),
-                perspectiveness = 0.5,
-                elevation = pi / 5,
-                azimuth = -π * (1 / 2 + 1 / 4),
-                zgridcolor = :grey,
+                aspect = 1,
                 ygridcolor = :grey,
                 xgridcolor = :grey;
                 xlabel = "r₁",
                 ylabel = "r₂",
-                zlabel = "Cost",
-                title = "W$world_idx, S$world_idx",
-                limits = (nothing, nothing, (0.01, max_value)),
+                title = "World $world_idx, Signal $world_idx",
+                limits = (nothing, nothing),
             ) for world_idx in 1:num_worlds
         ],
         [
-            Axis3(
+            Axis(
                 fig[2, world_idx],
-                aspect = (1, 1, 1),
-                perspectiveness = 0.5,
-                elevation = pi / 5,
-                azimuth = -π * (1 / 2 + 1 / 4),
-                zgridcolor = :grey,
+                aspect = 1,
                 ygridcolor = :grey,
                 xgridcolor = :grey;
                 xlabel = "r₁",
                 ylabel = "r₂",
-                zlabel = "Cost",
-                title = "W$world_idx, S0",
-                limits = (nothing, nothing, (0.01, max_value)),
+                title = "World $world_idx, Signal 0",
+                limits = (nothing, nothing),
             ) for world_idx in 1:num_worlds
         ],
     ]
+
     for world_idx in 1:num_worlds
         colors = get_RGB_vect(controls[world_idx])
         for ii in 1:size(costs[world_idx])[1]
             for jj in 1:size(costs[world_idx])[2]
-                hmap = scatter!(
-                    axs[1][world_idx],
-                    rs[ii],
-                    rs[jj],
-                    costs[world_idx][ii,jj],
-                    color = colors[ii,jj],
-                    colormap = :viridis,
-                    colorrange = (0, max_value),
-                )
+                if rs[ii] + rs[jj] > 1
+                    continue
+                end
+                hmap = scatter!(axs[1][world_idx], rs[ii], rs[jj], color = colors[ii, jj])
             end
         end
-        
-        # text!(axs[world_idx], "$(round(ps[1], digits=2))", position = (0.9, 0.4, cost_min), font = "Bold")
-        # text!(axs[world_idx], "$(round(ps[2], digits=2))", position = (0.1, 0.95, cost_min), font = "Bold")
-        # text!(axs[world_idx], "$(round(ps[3], digits=2))", position = (0.2, 0.1, cost_min), font = "Bold")
-
     end
     for world_idx in 1:num_worlds
-        colors = get_RGB_vect(controls[world_idx+num_worlds])
-        for ii in 1:size(costs[world_idx+num_worlds])[1]
-            for jj in 1:size(costs[world_idx+num_worlds])[2]
-                hmap = scatter!(
-                    axs[2][world_idx],
-                    rs[ii],
-                    rs[jj],
-                    costs[world_idx+num_worlds][ii,jj],
-                    color = colors[ii,jj],
-                    colormap = :viridis,
-                    colorrange = (0, max_value),
-                )
+        colors = get_RGB_vect(controls[world_idx + num_worlds])
+        for ii in 1:size(costs[world_idx + num_worlds])[1]
+            for jj in 1:size(costs[world_idx + num_worlds])[2]
+                if rs[ii] + rs[jj] > 1
+                    continue
+                end
+                hmap =
+                    scatter!(axs[2][world_idx], rs[ii], rs[jj], color = colors[ii, jj])
             end
         end
-        # text!(axs[world_idx], "$(round(ps[1], digits=2))", position = (0.9, 0.4, cost_min), font = "Bold")
-        # text!(axs[world_idx], "$(round(ps[2], digits=2))", position = (0.1, 0.95, cost_min), font = "Bold")
-        # text!(axs[world_idx], "$(round(ps[3], digits=2))", position = (0.2, 0.1, cost_min), font = "Bold")
-
-        # if world_idx == num_worlds
-        #     Colorbar(
-        #         fig[1:2, num_worlds + 1],
-        #         hmap;
-        #         label = "Cost",
-        #         width = 15,
-        #         ticksize = 15,
-        #         tickalign = 1,
-        #     )
-        # end
     end
-    save("figures/stage_1_controls.png", fig)
+    save("figures/stage_2_controls.png", fig)
     fig
 end
 
@@ -672,7 +581,7 @@ Output:
 """
 function display_surface(ps, Ks)
     rs = 0:(1 / (size(Ks)[1] - 1)):1
-    fig = Figure(size = (400, 400))
+    fig = Figure(size = (450, 375))
     ax = Axis3(
         fig[1, 1],
         aspect = (1, 1, 1),
@@ -684,16 +593,12 @@ function display_surface(ps, Ks)
         xgridcolor = :grey;
         xlabel = "r₁",
         ylabel = "r₂",
-        zlabel = "K",
-        title = "Normalized stage 1 cost\n priors = $(round.(ps, digits=2))",
+        zlabel = "|K|",
         limits = (nothing, nothing, (0.01, 1)),
     )
     Ks_min = minimum(filter(!isnan, Ks))
     hmap = surface!(ax, rs, rs, Ks, colorrange = (0, 1))
-    Colorbar(fig[1, 2], hmap; label = "K", width = 15, ticksize = 15, tickalign = 1)
-    text!(ax, "$(round(ps[1], digits=2))", position = (0.9, 0.2, 0.01), font = "Bold")
-    text!(ax, "$(round(ps[2], digits=2))", position = (0.1, 0.95, 0.01), font = "Bold")
-    text!(ax, "$(round(ps[3], digits=2))", position = (0.1, 0.2, 0.01), font = "Bold")
+    Colorbar(fig[1, 2], hmap; label = "|K|", width = 15, ticksize = 15, tickalign = 1)
 
     save("figures/stage_1_surface.png", fig)
     fig
