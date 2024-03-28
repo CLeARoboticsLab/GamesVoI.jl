@@ -633,8 +633,6 @@ Outputs
 function J_2(u, v, β)
     δ = [β[ii]*v[ii] - u[ii] for ii in eachindex(β)]
     -sum([activate(δ[j])*(β[j]*v[j]-u[j])^2 for j in eachindex(β)])
-    # δ = [v[ii] - u[ii] for ii in eachindex(β)]
-    # -sum([activate(δ[j])*β[j]*δ[j]^2 for j in eachindex(β)])
 end
 
 "Activation function for attacker cost function"
@@ -844,7 +842,7 @@ Outputs:
 function compute_dxdr(r, x, ps, βs, game; verbose = false)
     n = length(ps)
     n_players = 1 + n^2
-    var_dim = n # TODO: Change this to be more general
+    var_dim = n 
 
     # Return Jacobian
     dxdr = jacobian(
