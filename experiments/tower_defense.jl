@@ -17,11 +17,12 @@ using GLMakie:
     DataAspect,
     rotr90,
     hidedecorations!,
+    hidezdecorations!
     record, 
-    empty!
+    empty!, 
+    resize_to_layout!
 using FileIO
-
-using Infiltrator
+using LaTeXStrings
 
 """ Nomenclature
     N                         : Number of worlds (=3)
