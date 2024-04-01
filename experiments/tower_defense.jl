@@ -101,6 +101,7 @@ function solve_r(
     target_error = 0.00001,
     α = 1,
     return_states = false,
+    verbose=false,
 )
     @assert sum(r_init) ≈ 1.0 "Initial guess r must be a probability distribution"
     cur_iter = 0
@@ -113,7 +114,9 @@ function solve_r(
     end
     game, _ = build_stage_2(ps, βs)
     r = r_init
-    println("0: r = $r")
+    if verbose
+        println("0: r = $r")
+    end
     x = compute_stage_2(r, ps, βs, game)
     dKdr = zeros(Float64, n)
     while cur_iter < iter_limit # TODO: Break if change from last iteration is small
@@ -134,7 +137,9 @@ function solve_r(
         # compute stage 1 cost function for current r and x 
         K = compute_K(r, x, ps, βs)
         # println("r_temp = $(round.(r_temp, digits=3)), dKdr = $(round.(dKdr, digits=3)) r = $(round.(r, digits=3)) K = $(round(K, digits=3))")
-        println("r = $(round.(r, digits=3))")
+        if verbose
+            println("r = $(round.(r, digits=3))")
+        end
         cur_iter += 1
     end
     if return_states
@@ -569,6 +574,70 @@ function run_visualization()
     βs = [[3.0, 2.0, 2.0], [2.0, 3.0, 2.0], [2.0, 2.0, 3.0]]
     Ks = calculate_stage_1_costs(ps, βs; dr)
     fig = display_surface(ps, Ks)
+    if save_name !== ""
+        filename = "figures/"*save_name*"stage_1_cost.png"
+        # filename = "figures/"*save*"stage_1_controls.png"
+        save(filename, fig)
+    end
+    fig
+end
+
+"""
+Temp. script to get Stage 2 decision landscape(s)
+(Just perfect information, right now) 
+Example call: visualize_decisions(1,βs = [[6.5,2.,2.], [2., 3., 2.], [2., 2., 3.]])
+"""
+function visualize_decisions(world_idx;r=[1.,0.,0.],βs =nothing, save_name="")
+    players = [1,2]
+    dx = 0.01
+    ps = [1/3, 1 / 3, 1 / 3]
+    if βs == nothing
+        βs = [[4.,2.,2.], [2., 3., 2.], [2., 2., 3.]]
+    end
+    r = [1.,0.,0.]
+    xs = 0:dx:1    
+    decision_landscapes = get_stage2_landscape(ps, βs, r, world_idx; dx = 0.01, players = players, initial_guess = nothing)
+    
+    ylims = [[0.01,1],[-1.,0.]]
+
+    fig = Figure(size = (1500, 1000), title = "test")
+    axs = [
+            Axis3(
+                fig[1,pp],
+                aspect = (1, 1, 1),
+                perspectiveness = 0.5,
+                elevation = pi / 5,
+                azimuth = -π * (1 / 2 + 1 / 4),
+                zgridcolor = :grey,
+                ygridcolor = :grey,
+                xgridcolor = :grey;
+                xlabel = "x₁",
+                ylabel = "x₂",
+                zlabel = "Cost",
+                title = "World $world_idx, Signal $world_idx",
+                limits = (nothing, nothing, ylims[players[pp]]),
+            ) for pp in 1:length(players)
+        ]
+    for (pp, pl) in enumerate(players)
+        hmap = surface!(
+            axs[pp],
+            xs,
+            xs,
+            decision_landscapes[:,:,pp],
+            colormap = :viridis,
+            colorrange = (0, 1),
+        )
+        # text!(axs[world_idx], "$(round(ps[1], digits=2))", position = (0.9, 0.4, cost_min), font = "Bold")
+        # text!(axs[world_idx], "$(round(ps[2], digits=2))", position = (0.1, 0.95, cost_min), font = "Bold")
+        # text!(axs[world_idx], "$(round(ps[3], digits=2))", position = (0.2, 0.1, cost_min), font = "Bold")
+
+    end
+
+    if save_name !== ""
+        filename = "figures/"*save_name*"stage_2_decision_landscapes.png"
+        # filename = "figures/"*save*"stage_1_controls.png"
+        save(filename, fig)
+    end
     fig
 end
 
@@ -598,12 +667,12 @@ function run_stage_1_breakout(;
         world_3_id_costs, world_3_id_controls =
             calculate_id_costs(ps, βs, 3; dr, return_controls = display_controls)
     else
-        world_1_misid_costs = calculate_misid_costs(ps, βs, 1; dr)
-        world_2_misid_costs = calculate_misid_costs(ps, βs, 2; dr)
-        world_3_misid_costs = calculate_misid_costs(ps, βs, 3; dr)
-        world_1_id_costs = calculate_id_costs(ps, βs, 1; dr)
-        world_2_id_costs = calculate_id_costs(ps, βs, 2; dr)
-        world_3_id_costs = calculate_id_costs(ps, βs, 3; dr)
+        world_1_misid_costs = calculate_misid_costs(ps, βs, 1; dr, initial_guess=initial_guess, cost_player=cost_player)
+        world_2_misid_costs = calculate_misid_costs(ps, βs, 2; dr, initial_guess=initial_guess, cost_player=cost_player)
+        world_3_misid_costs = calculate_misid_costs(ps, βs, 3; dr, initial_guess=initial_guess, cost_player=cost_player)
+        world_1_id_costs = calculate_id_costs(ps, βs, 1; dr, initial_guess=initial_guess, cost_player=cost_player)
+        world_2_id_costs = calculate_id_costs(ps, βs, 2; dr, initial_guess=initial_guess, cost_player=cost_player)
+        world_3_id_costs = calculate_id_costs(ps, βs, 3; dr, initial_guess=initial_guess, cost_player=cost_player)
     end
     # Normalize using maximum value across all worlds
     max_value = maximum(
@@ -744,6 +813,7 @@ function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls = 0)
             return_controls = 0
         end
     end
+    J = cost_player == 2 ? J_2 : J_1
 
     for (i, r1) in enumerate(rs)
         for (j, r2) in enumerate(rs)
@@ -757,7 +827,7 @@ function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls = 0)
             id_cost =
                 r[world_idx] *
                 ps[world_idx] *
-                J_1(
+                J(
                     x[Block(world_idx + 1)],
                     x[Block(world_idx + 2 * num_worlds + 1)],
                     βs[world_idx],
@@ -802,6 +872,7 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 
             return_controls = 0
         end
     end
+    J = cost_player == 2 ? J_2 : J_1
 
     for (i, r1) in enumerate(rs)
         for (j, r2) in enumerate(rs)
@@ -814,7 +885,7 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 
             x = compute_stage_2(IBRGameSolver(), r, ps, βs, [J_1, J_2])
             defender_signal_0 = x[Block(1)]
             attacker_signal_0_world_idx = x[Block(world_idx + num_worlds + 1)]
-            misid_cost = J_1(defender_signal_0, attacker_signal_0_world_idx, βs[world_idx])
+            misid_cost = J(defender_signal_0, attacker_signal_0_world_idx, βs[world_idx])
             misid_cost = (1 - r[world_idx]) * ps[world_idx] * misid_cost  # weight by p(w_k|s¹=0)
             misid_costs[i, j] = misid_cost
             if (return_controls > 0)
@@ -830,6 +901,66 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 
         return misid_costs
     end
 end
+
+"""
+Get the decision landscape for one or both players from Stage 2
+"""
+
+function get_stage2_landscape(ps, βs, r, world_idx; dx = 0.05, players = [1,2], initial_guess = nothing)
+    @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
+    @assert sum(r) ≈ 1.0 "Scout allocation r must be a probability distribution"
+    game, _ = build_stage_2(ps, βs)
+    xs = 0:dx:1
+    num_worlds = length(ps)
+    costs = NaN * ones(Float64, Int(1 / dx + 1), Int(1 / dx + 1),length(players))
+    if isnothing(initial_guess)
+        initial_guess = (1/3)*ones(total_dim(game))
+    end
+
+
+    # Js = []
+    # for pl in players
+    #     push!(Js,pl == 2 ? J_2 : J_1)
+    # end
+    
+    xnash = compute_stage_2(r, ps, βs, game, initial_guess=initial_guess)
+    xnash_P1 = xnash[Block(world_idx + 1)]
+    xnash_P2 = xnash[Block(world_idx + 2 * num_worlds + 1)]
+
+    @infiltrate
+    for (i, x1) in enumerate(xs)
+        for (j, x2) in enumerate(xs)
+            if x1 + x2 > 1
+                continue
+            end
+            x3 = 1 - x1 - x2
+            xnew = [x1, x2, x3]
+            
+            for (k, pl) in enumerate(players)
+                cost = pl == 2 ? J_2(xnash_P1,xnew,βs[world_idx]) : J_1(xnew, xnash_P2,βs[world_idx])
+                costs[i,j,k] = cost
+            end
+        end
+    end
+
+    for (k, pl) in enumerate(players)
+        maxormin = pl == 2 ? minimum : maximum
+        value =
+        maxormin(
+            filter(
+                !isnan,
+                vcat(costs[:,:,k]),
+            ),
+        )
+        value = (-1)^(pl+1)*value
+        costs[:,:,k] = [isnan(c) ? NaN : c / value for c in costs[:,:,k]]
+    end
+
+    
+    return costs
+
+end
+
 
 """
 Display surface of Stage 1's objective function. Assumes number of worlds is 3.
@@ -913,7 +1044,7 @@ Input:
 Output: 
     fig: Figure with simplex heatmap
 """
-function display_stage_1_costs_controls(costs, controls, ps)
+function display_stage_1_costs_controls(costs, controls, ps; save_file = "", cost_player=1)
     rs = 0:(1 / (size(costs[1])[1] - 1)):1
     num_worlds = length(ps)
     fig = Figure(size = (600, 400), title = "test")
