@@ -17,8 +17,9 @@ using GLMakie:
     DataAspect,
     rotr90,
     hidedecorations!,
-    hidezdecorations!
-record, empty!, resize_to_layout!
+    hidezdecorations!,
+    empty!,
+    resize_to_layout!
 using FileIO
 using LaTeXStrings
 
@@ -568,17 +569,12 @@ end
 """
 Visualization. Calculate and plot Stage 1 cost as a function of r for a given prior distribution and attacker preference.
 """
-function run_visualization()
+function visualize_stage_1_cost()
     dr = 0.05
     ps = [1 / 3, 1 / 3, 1 / 3]
     βs = [[3.0, 2.0, 2.0], [2.0, 3.0, 2.0], [2.0, 2.0, 3.0]]
     Ks = calculate_stage_1_costs(ps, βs; dr)
     fig = display_surface(ps, Ks)
-    if save_name !== ""
-        filename = "figures/"*save_name*"stage_1_cost.png"
-        # filename = "figures/"*save*"stage_1_controls.png"
-        save(filename, fig)
-    end
     fig
 end
 
@@ -667,12 +663,12 @@ function run_stage_1_breakout(;
         world_3_id_costs, world_3_id_controls =
             calculate_id_costs(ps, βs, 3; dr, return_controls = display_controls)
     else
-        world_1_misid_costs = calculate_misid_costs(ps, βs, 1; dr, initial_guess=initial_guess, cost_player=cost_player)
-        world_2_misid_costs = calculate_misid_costs(ps, βs, 2; dr, initial_guess=initial_guess, cost_player=cost_player)
-        world_3_misid_costs = calculate_misid_costs(ps, βs, 3; dr, initial_guess=initial_guess, cost_player=cost_player)
-        world_1_id_costs = calculate_id_costs(ps, βs, 1; dr, initial_guess=initial_guess, cost_player=cost_player)
-        world_2_id_costs = calculate_id_costs(ps, βs, 2; dr, initial_guess=initial_guess, cost_player=cost_player)
-        world_3_id_costs = calculate_id_costs(ps, βs, 3; dr, initial_guess=initial_guess, cost_player=cost_player)
+        world_1_misid_costs = calculate_misid_costs(ps, βs, 1; dr)
+        world_2_misid_costs = calculate_misid_costs(ps, βs, 2; dr)
+        world_3_misid_costs = calculate_misid_costs(ps, βs, 3; dr)
+        world_1_id_costs = calculate_id_costs(ps, βs, 1; dr)
+        world_2_id_costs = calculate_id_costs(ps, βs, 2; dr)
+        world_3_id_costs = calculate_id_costs(ps, βs, 3; dr)
     end
     # Normalize using maximum value across all worlds
     max_value = maximum(
@@ -813,7 +809,6 @@ function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls = 0)
             return_controls = 0
         end
     end
-    J = cost_player == 2 ? J_2 : J_1
 
     for (i, r1) in enumerate(rs)
         for (j, r2) in enumerate(rs)
@@ -827,7 +822,7 @@ function calculate_id_costs(ps, βs, world_idx; dr = 0.05, return_controls = 0)
             id_cost =
                 r[world_idx] *
                 ps[world_idx] *
-                J(
+                J_1(
                     x[Block(world_idx + 1)],
                     x[Block(world_idx + 2 * num_worlds + 1)],
                     βs[world_idx],
@@ -872,7 +867,6 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 
             return_controls = 0
         end
     end
-    J = cost_player == 2 ? J_2 : J_1
 
     for (i, r1) in enumerate(rs)
         for (j, r2) in enumerate(rs)
@@ -885,7 +879,7 @@ function calculate_misid_costs(ps, βs, world_idx; dr = 0.05, return_controls = 
             x = compute_stage_2(IBRGameSolver(), r, ps, βs, [J_1, J_2])
             defender_signal_0 = x[Block(1)]
             attacker_signal_0_world_idx = x[Block(world_idx + num_worlds + 1)]
-            misid_cost = J(defender_signal_0, attacker_signal_0_world_idx, βs[world_idx])
+            misid_cost = J_1(defender_signal_0, attacker_signal_0_world_idx, βs[world_idx])
             misid_cost = (1 - r[world_idx]) * ps[world_idx] * misid_cost  # weight by p(w_k|s¹=0)
             misid_costs[i, j] = misid_cost
             if (return_controls > 0)
@@ -905,7 +899,6 @@ end
 """
 Get the decision landscape for one or both players from Stage 2
 """
-
 function get_stage2_landscape(ps, βs, r, world_idx; dx = 0.05, players = [1,2], initial_guess = nothing)
     @assert sum(ps) ≈ 1.0 "Prior distribution ps must be a probability distribution"
     @assert sum(r) ≈ 1.0 "Scout allocation r must be a probability distribution"
@@ -927,7 +920,6 @@ function get_stage2_landscape(ps, βs, r, world_idx; dx = 0.05, players = [1,2],
     xnash_P1 = xnash[Block(world_idx + 1)]
     xnash_P2 = xnash[Block(world_idx + 2 * num_worlds + 1)]
 
-    @infiltrate
     for (i, x1) in enumerate(xs)
         for (j, x2) in enumerate(xs)
             if x1 + x2 > 1
@@ -1044,7 +1036,7 @@ Input:
 Output: 
     fig: Figure with simplex heatmap
 """
-function display_stage_1_costs_controls(costs, controls, ps; save_file = "", cost_player=1)
+function display_stage_1_costs_controls(costs, controls, ps)
     rs = 0:(1 / (size(costs[1])[1] - 1)):1
     num_worlds = length(ps)
     fig = Figure(size = (600, 400), title = "test")
