@@ -2,7 +2,7 @@
 
 [![GamesVoI](https://github.com/CLeARoboticsLab/GamesVoI.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/CLeARoboticsLab/GamesVoI.jl/actions/workflows/ci.yml)
 
-A Julia package for computing the value of information in Bayesian games. Read the full paper [here](https://arxive.org)
+A Julia package for computing the value of information in Bayesian games. Read the full paper [here](https://arxiv.org/abs/2404.00733)
 
 ## Paper Abstract 
 
@@ -23,7 +23,7 @@ with smooth payoff functions and uncertainty over battlefield
 valuations. Finally, we analyze how optimal decisions shift with
 changes in information-gathering allocations and perturbations
 
-Read the full paper [here](https://arxiv.org/abs/2311.09439).
+Read the full paper [here](https://arxiv.org/abs/2404.00733)
 
 ## Quickstart Guide
 
