@@ -27,22 +27,6 @@ Read the full paper [here](https://arxiv.org/abs/2311.09439).
 
 ## Quickstart Guide
 
-**Installation**
-
-This package uses the proprietary PATH solver under the hood (via [PATHSolver.jl](https://github.com/chkwon/PATHSolver.jl)).
-Therefore, you will need a license key to solve larger problems.
-However, by courtesy of Steven Dirkse, Michael Ferris, and Tudd Munson,
-[temporary licenses are available free of charge](https://pages.cs.wisc.edu/~ferris/path.html).
-Please consult the documentation of [PATHSolver.jl](https://github.com/chkwon/PATHSolver.jl) to learn about loading the license key.
-
-## Running Experiments
-To run your own experiments, start Julia at the repository root as `julia --project`. Then, run the following code: 
-
-```julia
-julia> ] instantiate
-julia> include("experiments/my_experiment.jl")
-```
-
 ## Replicating paper visuals
 If you would like to replicate the visualizations shown in the paper, run the following commands. 
 Going through the source code for the visualizations is also a good way of understanding how the code is structured. 
@@ -70,6 +54,15 @@ julia> visualize_stage_1_cost()
 ```julia
 julia> run_stage_1_breakout(display_controls = 0)
 ```
+
+### A note on the solver
+
+This package uses the proprietary PATH solver under the hood (via [PATHSolver.jl](https://github.com/chkwon/PATHSolver.jl)).
+Therefore, you will need a license key to solve larger problems.
+However, by courtesy of Steven Dirkse, Michael Ferris, and Tudd Munson,
+[temporary licenses are available free of charge](https://pages.cs.wisc.edu/~ferris/path.html).
+Please consult the documentation of [PATHSolver.jl](https://github.com/chkwon/PATHSolver.jl) to learn about loading the license key.
+
 
 ## Contact 
 
