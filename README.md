@@ -55,6 +55,20 @@ julia> visualize_stage_1_cost()
 julia> run_stage_1_breakout(display_controls = 0)
 ```
 
+### Stage 2 demo (Fig. 7)
+
+```julia
+julia> include("experiments/scout_visuals.jl")
+julia> demo_full()
+```
+
+### Precompute for faster Stage 2 demo
+
+```julia
+julia> include("experiments/scout_visuals.jl")
+julia> precompute_r()
+```
+
 ### A note on the solver
 
 This package uses the proprietary PATH solver under the hood (via [PATHSolver.jl](https://github.com/chkwon/PATHSolver.jl)).
