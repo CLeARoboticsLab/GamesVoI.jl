@@ -269,7 +269,7 @@ display(fig, fullscreen = true)
 end
 
 # Pre-compute all r values for all priors for a given attacker preference
-function compute_all_r_save_to_file()
+function precompute_r()
     hashmap = Dict{Vector{Float64}, Vector{Float64}}()
     for prior_north in prior_range
         for prior_east in prior_range
